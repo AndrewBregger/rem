@@ -1,0 +1,15 @@
+[package]
+name = "rem"
+version = "0.0.1"
+authors = ["Andrew Bregger <adb3649@tamu.edu>"]
+edition = "2018"
+description = "Modal editor written in Rust."
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+glfw = "0.29"
+gl = "0.13"
+ropey = "1.0"
+nalgebra-glm = "0.4"
+image = "0.21"
