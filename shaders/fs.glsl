@@ -1,10 +1,15 @@
 #version 410
 
 uniform sampler2D text;
+uniform vec4 background;
 
 in vec2 coords;
-out vec4 color;
+
+layout (location = 0, index = 0) out vec4 color0;
+layout (location = 0, index = 1) out vec4 color1;
 
 void main() {
-    color = texture(text, coords); // + vec4(0.4, 0.5, 0.4, 1.0);
+    vec3 color = texture(text, coords).rgb;
+    color0 = background;
+    color1 = vec4(color, color.r);
 }
