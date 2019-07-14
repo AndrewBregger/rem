@@ -1,24 +1,24 @@
+extern crate freetype as ft;
 extern crate gl;
 extern crate glutin;
 extern crate image;
-extern crate freetype as ft;
 extern crate nalgebra_glm as glm;
 
 //mod shader;
-//mod font;
-//mod renderer;
-//mod window;
+mod font;
+mod render;
+mod window;
 
-use gl::types::*;
-// use std::thread::Builder;
-use std::ffi::CString;
-use std::mem;
-use std::ptr;
-use std::str;
+//use gl::types::*;
+//use std::ffi::CString;
+//use std::mem;
+//use std::ptr;
+//use std::str;
 use std::path::PathBuf;
-use glutin::dpi::LogicalSize;
-use glutin::{event_loop::EventLoop, window::WindowBuilder, event::Event};
-// use std::sync::mpsc;
+//use glutin::dpi::LogicalSize;
+use glutin::*;
+use std::sync::mpsc;
+use std::thread::Builder;
 //
 macro_rules! glCheck {
     () => {{
@@ -116,7 +116,7 @@ impl Texture {
     pub fn buffer(&self) -> &Vec<u8> {
         &self.data
     }
-    
+
     // maybe add a options: TextureOptions
     pub fn init(&mut self) {
         self.allocate();
@@ -170,79 +170,53 @@ impl GLResource for Texture {
 }
 */
 
+struct App {
+    window: window::Window,
+    renderer: render::Renderer,
+}
 
 fn main() {
-    
-    let el = EventLoop::new(); 
+    let event_loop = window::EventsLoop::new();
 
-    let wb = WindowBuilder::new()
-        .with_title("REM")
-        .with_inner_size(LogicalSize::new(1024.0, 720.0));
+    let mut window = window::Window::new(event_loop, window::Size::from(1078.0, 428.0)).unwrap();
 
-    let contextBuilder = glutin::ContextBuilder::new().build_windowed(wb, &el).unwrap();
-
-    
-    el.run(|event, &_, control_flow| {
-        match event {
-            Event::DeviceEvent {
-                event,
-                ..
-            } => {
-                match event {
-                    event::Event::DeviceEvent::Key(k) => {
-                        match k.virtual_keycode {
-                            Some(glutin::event::VirtualKey::Escape) => glutin::event_loop::ControlFlow::Exit,
-                            _ => glutin::event_loop::ControlFlow::Poll,
-                        }
-                    },
-                    _ =>  glutin::event_loop::ControlFlow::Poll,
-                }
-            },
-            _ => glutin::event_loop::ControlFlow::Poll,
-            Event::LoopDestroyed => glutin::event_loop::ControlFlow::Exit,
-        }
-    });
+    window.run();
 
     //let (trans, recv) = mpsc::channel();
     //let worker_thread = Builder::new().name("renderer".to_string());
 
     //let render_done = worker_thread.spawn(move || {
-    //    render(render_context, recv);
+    //    let window = window::Window::new(event_loop, window::Size::new(1078.0, 426.0)).unwrap();
+    //    render(window_context, recv);
     //});
-
-
-
-    //trans.send(()).ok().expect("Failed to close render thread");
-    //let _ = render_done;
 }
 
 /*
-fn render(mut context: glfw::RenderContext, recv: mpsc::Receiver<()>) {
-    context.make_current();
+fn run(event_loop: &window::EventLoop) {
 
+    trans.send(()).ok().expect("Failed to close render thread");
+    let _ = render_done;
+}
+*/
 
-    let (_vao, _vbo, _ibo, im) = setup();
+/*
+fn render(context: glutin::ContextWrapper<glutin::NotCurrent, glutin::window::Window>, recv: mpsc::Receiver<()>) {
+    // get the gl_context to render from
+    let render_context = unsafe { context.make_current().unwrap() };
 
-    unsafe {
-        gl::ClearColor(1.0, 1.0, 1.0, 1.0);
-    }
+    // loads all of the functions on this thread.
+    gl::load_with(|s| render_context.get_proc_address(s) as *const _);
 
+    // render shit!!
     loop {
         if recv.try_recv() == Ok(()) { break };
 
         unsafe {
+            gl::ClearColor(0.2, 0.4, 0.4, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
-
-            gl::ActiveTexture(gl::TEXTURE0 + im);
-            gl::BindTexture(gl::TEXTURE_2D, im);
-
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
-            glCheck!();
-
-            gl::BindTexture(gl::TEXTURE_2D, 0);
         }
 
-        context.swap_buffers();
+        render_context.swap_buffers().unwrap();
     }
 }
 */

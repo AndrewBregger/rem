@@ -12,7 +12,7 @@ pub struct Size(u16);
 pub enum Style {
     Normal,
     Italics,
-    Bold
+    Bold,
 }
 
 type FResult<T> = Result<T, ft::Error>;
@@ -28,14 +28,18 @@ pub struct FontDesc {
 
 // global metrics of the fonts.
 #[derive(Debug, Clone)]
-pub struct FontMetrics {
-}
+pub struct FontMetrics {}
 
 // desciption of a glyph and font.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlyphDesc {
     pub ch: u32,        // to support unicode
     pub font: FontDesc, // the uniquly identify this font.
+}
+
+#[inline]
+fn convert_to_ft(size: &Size) -> u32 {
+    size.0 as u32 * 64
 }
 
 #[derive(Debug, Clone)]
@@ -58,18 +62,19 @@ pub struct RasterizedGlyph {
     pub width: f32,
     pub height: f32,
     pub top: f32,
-    pub left: f32
+    pub left: f32,
 }
 
-trait Rasterizer {
+pub trait Rasterizer {
     fn load_glyph(&mut self, glyph: GlyphDesc) -> FResult<&RasterizedGlyph>;
-     //fn load_font(&self, font: FontDesc) -> FResult<>;
+    //fn load_font(&self, font: FontDesc) -> FResult<>;
 }
 
-struct FTRasterizer {
+pub struct FTRasterizer {
     library: ft::Library,
     faces: HashMap<FontDesc, Face>,
     fonts: HashMap<PathBuf, FontDesc>,
+    dpi_factor: f64,
 }
 
 impl Hash for FontDesc {
@@ -87,26 +92,40 @@ impl Hash for GlyphDesc {
 }
 
 impl Face {
-    fn new(face: ft::Face, font: FontDesc) -> Self {
+    pub fn new(face: ft::Face, font: FontDesc) -> Self {
         Self {
-           font,
-           face,
-           glyphs: HashMap::new(),
-           metrics: FontMetrics {},
+            font,
+            face,
+            glyphs: HashMap::new(),
+            metrics: FontMetrics {},
         }
+    }
+
+    // for setting the character size of monospace fonts.
+    pub fn set_mono_size(&self, vertical_size: isize) {
+        self.face.set_char_size(vertical_size, 0, 0, 0).unwrap();
+    }
+
+    // for setting the size of traditional fonts.
+    pub fn set_char_size(&self, vertical_size: isize, horizontal_size: isize) {
+        self.face
+            .set_char_size(vertical_size, horizontal_size, 0, 0)
+            .unwrap();
     }
 }
 
 impl FTRasterizer {
-   pub fn new() -> FResult<FTRasterizer> {
-       Ok(Self {
-           library: ft::library::Library::init()?,
-           faces: HashMap::new(),
-           fonts: HashMap::new(),
-       })
-   }
-    
-   fn normalize_buffer(bitmap: &ft::Bitmap) -> (f32, f32, Vec<u8>) {
+    // this will probably need to be change later to support changing dpi's
+    pub fn new(dpi_factor: f64) -> FResult<FTRasterizer> {
+        Ok(Self {
+            library: ft::library::Library::init()?,
+            faces: HashMap::new(),
+            fonts: HashMap::new(),
+            dpi_factor,
+        })
+    }
+
+    fn normalize_buffer(bitmap: &ft::Bitmap) -> (f32, f32, Vec<u8>) {
         let mut data = Vec::new();
         let buf = bitmap.buffer();
         match bitmap.pixel_mode().unwrap() {
@@ -157,10 +176,10 @@ impl FTRasterizer {
             ft::bitmap::PixelMode::Lcd => {
                 data.reserve(buf.len());
                 for i in 0..bitmap.rows() {
-                        let start = (i as usize) * bitmap.pitch() as usize;
-                        let stop = start + bitmap.width() as usize;
-                        data.extend_from_slice(&buf[start..stop]);
-                    }
+                    let start = (i as usize) * bitmap.pitch() as usize;
+                    let stop = start + bitmap.width() as usize;
+                    data.extend_from_slice(&buf[start..stop]);
+                }
                 (bitmap.rows() as f32, (bitmap.width() as f32 / 3.0), data)
             }
             ft::bitmap::PixelMode::LcdV => {
@@ -170,23 +189,23 @@ impl FTRasterizer {
                 panic!("Not implemented");
             }
         }
-   }
+    }
 
-   fn rasterize_glyph(face: &Face, glyph_index: u32) -> FResult<&ft::GlyphSlot> {
-       if glyph_index == 0 {
-           Err(ft::Error::InvalidHandle)
-       }
-       else {
-           face.face.load_glyph(glyph_index, ft::face::LoadFlag::RENDER); // get this info somewhere else
-           Ok(face.face.glyph())
-       }
-   }
+    fn rasterize_glyph(face: &Face, glyph_index: u32) -> FResult<&ft::GlyphSlot> {
+        if glyph_index == 0 {
+            Err(ft::Error::InvalidHandle)
+        } else {
+            face.face
+                .load_glyph(glyph_index, ft::face::LoadFlag::RENDER); // get this info somewhere else
+            Ok(face.face.glyph())
+        }
+    }
 
-   fn maybe_insert_font_desc(&mut self, font: &FontDesc) {
-       if !self.fonts.contains_key(&font.path) {
-           self.fonts.insert(font.path.clone(), font.clone());
-       }
-   }
+    fn maybe_insert_font_desc(&mut self, font: &FontDesc) {
+        if !self.fonts.contains_key(&font.path) {
+            self.fonts.insert(font.path.clone(), font.clone());
+        }
+    }
 }
 
 impl Rasterizer for FTRasterizer {
@@ -195,31 +214,35 @@ impl Rasterizer for FTRasterizer {
 
     fn load_glyph(&mut self, glyph: GlyphDesc) -> FResult<&RasterizedGlyph> {
         unsafe {
-            ft::ffi::FT_Library_SetLcdFilter(self.library.raw(), ft::LcdFilter::LcdFilterDefault as u32);
+            ft::ffi::FT_Library_SetLcdFilter(
+                self.library.raw(),
+                ft::LcdFilter::LcdFilterDefault as u32,
+            );
         }
 
         let mut face = if self.faces.contains_key(&glyph.font) {
             self.faces.get_mut(&glyph.font).unwrap()
-        }
-        else {
-           let pathbuf = glyph.font.path.clone();
-           let ft_face = self.library.new_face(pathbuf, glyph.font.style.clone() as isize)?;
-           let face = Face::new(ft_face, glyph.font.clone());
-           
-           self.maybe_insert_font_desc(&glyph.font);
-           self.faces.insert(glyph.font.clone(), face);
-        
-           // we know it is there
-           self.faces.get_mut(&glyph.font).unwrap()
+        } else {
+            let pathbuf = glyph.font.path.clone();
+            let ft_face = self
+                .library
+                .new_face(pathbuf, glyph.font.style.clone() as isize)?;
+            let face = Face::new(ft_face, glyph.font.clone());
 
+            self.maybe_insert_font_desc(&glyph.font);
+            self.faces.insert(glyph.font.clone(), face);
+
+            // we know it is there
+            self.faces.get_mut(&glyph.font).unwrap()
         };
-    
+
+        face.set_mono_size((convert_to_ft(&glyph.font.size) as f64 * self.dpi_factor) as isize);
         let index = face.face.get_char_index(glyph.ch as usize);
         let gl = Self::rasterize_glyph(face, index)?;
 
         let (w, h, buf) = Self::normalize_buffer(&gl.bitmap());
 
-        let ft::Vector { x , y } = gl.advance();
+        let ft::Vector { x, y } = gl.advance();
 
         let rglyph = RasterizedGlyph {
             glyph: glyph.ch,
@@ -231,7 +254,7 @@ impl Rasterizer for FTRasterizer {
             width: w,
             height: h,
             top: gl.bitmap_top() as f32,
-            left: gl.bitmap_left() as f32
+            left: gl.bitmap_left() as f32,
         };
 
         face.glyphs.insert(glyph.clone(), rglyph);
