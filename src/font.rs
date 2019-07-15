@@ -7,6 +7,12 @@ use std::hash::{Hash, Hasher};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Size(u16);
 
+impl Size {
+    pub fn new(v: u16) -> Self {
+        Size(v)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Style {

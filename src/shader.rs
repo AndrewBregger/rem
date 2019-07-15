@@ -2,7 +2,15 @@ use gl::types::*;
 use std::ffi::CString;
 use std::ptr;
 use std::str;
+use std::path::PathBuf;
+use std::fs;
+use std::convert::AsRef;
 
+pub fn load_file<P: AsRef<std::path::Path>>(filename: P) -> String {
+    let content = fs::read_to_string(&filename)
+            .expect(format!("Failed to load file: '{}'", filename.as_ref().to_str().unwrap()).as_str());
+    content
+}
 
 pub fn compile_shader(src: &str, ty: GLenum) -> GLuint {
     let shader;
