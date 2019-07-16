@@ -27,23 +27,23 @@ type Result<T> = ::std::result::Result<T, Error>;
 
 macro_rules! glCheck {
     () => {{
-        //   if cfg!(debug_assertions) {
-        let err = gl::GetError();
-        // println!("Error {:?}", err);
-        if err != gl::NO_ERROR {
-            let err_str = match err {
-                gl::INVALID_ENUM => "GL_INVALID_ENUM",
-                gl::INVALID_VALUE => "GL_INVALID_VALUE",
-                gl::INVALID_OPERATION => "GL_INVALID_OPERATION",
-                gl::INVALID_FRAMEBUFFER_OPERATION => "GL_INVALID_FRAMEBUFFER_OPERATION",
-                gl::OUT_OF_MEMORY => "GL_OUT_OF_MEMORY",
-                gl::STACK_UNDERFLOW => "GL_STACK_UNDERFLOW",
-                gl::STACK_OVERFLOW => "GL_STACK_OVERFLOW",
-                _ => "unknown error",
-            };
-            println!("{}:{} error {}", file!(), line!(), err_str);
+        if cfg!(debug_assertions) {
+            let err = unsafe { gl::GetError() };
+            // println!("Error {:?}", err);
+            if err != gl::NO_ERROR {
+                let err_str = match err {
+                    gl::INVALID_ENUM => "GL_INVALID_ENUM",
+                    gl::INVALID_VALUE => "GL_INVALID_VALUE",
+                    gl::INVALID_OPERATION => "GL_INVALID_OPERATION",
+                    gl::INVALID_FRAMEBUFFER_OPERATION => "GL_INVALID_FRAMEBUFFER_OPERATION",
+                    gl::OUT_OF_MEMORY => "GL_OUT_OF_MEMORY",
+                    gl::STACK_UNDERFLOW => "GL_STACK_UNDERFLOW",
+                    gl::STACK_OVERFLOW => "GL_STACK_OVERFLOW",
+                    _ => "unknown error",
+                };
+                println!("{}:{} error {}", file!(), line!(), err_str);
+            }
         }
-        //  }
     }};
 }
 
@@ -323,14 +323,18 @@ pub struct Atlas {
 impl Atlas {
     // the gl texture is not allocated until a subtexture is added.
     pub fn new(size: Size) -> Result<Self> {
-        Ok(Self {
+        let mut atlas = Self {
             x: 0.0,
             base_line: 0.0,
             size,
             max_height: 0.0,
             texture_id: 0,
-            id: 0 // I dont know how to set this.
-        })
+            id: 0, // I dont know how to set this.
+        };
+
+        atlas.allocate_texture()?;
+
+        Ok(atlas)
     }
 
     pub fn bind(&self) {
@@ -393,12 +397,16 @@ impl Atlas {
             glCheck!();
 
             gl::BindTexture(gl::TEXTURE_2D, 0);
+
         }
         Ok(())
     }
 
     pub fn insert(&mut self, glyph: &RasterizedGlyph) -> Result<Glyph> {
         // move to next row if needed
+        println!("{:?}", self.size);
+        println!("\tW: {}, H: {}", glyph.width, glyph.height);
+        println!("\tX: {}, y: {}", self.x, self.base_line);
         if !self.has_space(glyph) {
             self.advance()?;
         }
@@ -418,6 +426,10 @@ impl Atlas {
     
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
+            glCheck!();
+
+            //println!("{:?}", glyph);
+            //println!("{:?}", self.size);
 
             gl::TexSubImage2D(gl::TEXTURE_2D,  
                               0,
@@ -428,8 +440,10 @@ impl Atlas {
                               gl::RGB,
                               gl::UNSIGNED_BYTE,
                               glyph.bitmap.as_ptr() as *const _);
+            glCheck!();
 
             gl::BindTexture(gl::TEXTURE_2D, 0);
+            glCheck!();
         }
 
         let old_x = self.x;
@@ -459,7 +473,9 @@ impl Atlas {
     // advance to the next row of the atlas
     // Errors if there is no more room
     fn advance(&mut self) -> Result<()> {
+        println!("Advance!");
         if self.base_line + self.max_height < self.size.height() as f32 {
+            self.x = 0.0;
             self.base_line += self.max_height;
             self.max_height = 0f32;
             Ok(())

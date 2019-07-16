@@ -127,6 +127,9 @@ impl Window {
 
         let context = ContextBuilder::new()
             // these should be checked or passed an not assumed. {
+            .with_gl_debug_flag(true)
+            .with_gl_robustness(glutin::Robustness::TryRobustLoseContextOnReset)
+            .with_double_buffer(Some(true))
             .with_srgb(true)
             .with_vsync(true)
             // }
