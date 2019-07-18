@@ -66,7 +66,9 @@ pub struct TextShader {
     // uniform location
     per_loc: i32,
     // uniform atlas
-    text_loc: i32,
+    atlas_loc: i32,
+    // size of each cell
+    cell_loc: i32,
     // shader used
     active: bool,
 }
@@ -82,13 +84,15 @@ impl TextShader {
         let program = shader::link_shader(vs, fs);
 
         
-        let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("per").unwrap().as_ptr()) };
-        let text_loc = unsafe { gl::GetUniformLocation(program, CString::new("text").unwrap().as_ptr()) };
+        let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr()) };
+        let atlas_loc = unsafe { gl::GetUniformLocation(program, CString::new("atlas").unwrap().as_ptr()) };
+        let cell_loc = unsafe { gl::GetUniformLocation(program, CString::new("cell_size").unwrap().as_ptr()) };
 
         Ok(Self {
             program,
             per_loc,
-            text_loc,
+            atlas_loc,
+            cell_loc,
             active: false,
         })
     }
@@ -98,7 +102,11 @@ impl TextShader {
     }
 
     pub fn set_font_atlas(&self, atlas: &Atlas) {
-        unsafe { gl::Uniform1i(self.text_loc, atlas.texture_id as i32) };
+        unsafe { gl::Uniform1i(self.atlas_loc, atlas.texture_id as i32) };
+    }
+
+    pub fn set_cell_size(&self, size: (f32, f32)) {
+        unsafe { gl::Uniform2f(self.cell_loc, size.0, size.1) };
     }
 
     pub fn activate(&mut self) {
@@ -277,6 +285,18 @@ pub struct Glyph {
     pub uv_dx: f32,
     /// The height in texture coordinate space (delta y)
     pub uv_dy: f32,
+    /// top of glyph
+    pub top: f32,
+    /// left of glyph
+    pub left: f32,
+    /// advance x
+    pub advance_x: f32,
+    /// advance y
+    pub advance_y: f32,
+    /// x bearing of the character
+    pub bearing_x: f32,
+    /// y bearing of the character
+    pub bearing_y: f32,
 }
 
 /////////////////////////////////////////////////////////
@@ -354,7 +374,8 @@ impl Atlas {
                     format!("Failed to allocate texture of size {:?}", self.size).to_owned(),
                 ));
             }
-
+        
+            gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
             gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
 
             gl::TexParameteri(
@@ -404,9 +425,9 @@ impl Atlas {
 
     pub fn insert(&mut self, glyph: &RasterizedGlyph) -> Result<Glyph> {
         // move to next row if needed
-        println!("{:?}", self.size);
-        println!("\tW: {}, H: {}", glyph.width, glyph.height);
-        println!("\tX: {}, y: {}", self.x, self.base_line);
+        //println!("{:?}", self.size);
+        //println!("\tW: {}, H: {}", glyph.width, glyph.height);
+        //println!("\tX: {}, y: {}", self.x, self.base_line);
         if !self.has_space(glyph) {
             self.advance()?;
         }
@@ -439,7 +460,7 @@ impl Atlas {
                               glyph.height as i32,
                               gl::RGB,
                               gl::UNSIGNED_BYTE,
-                              glyph.bitmap.as_ptr() as *const _);
+                              mem::transmute(&glyph.bitmap[0]));
             glCheck!();
 
             gl::BindTexture(gl::TEXTURE_2D, 0);
@@ -462,6 +483,12 @@ impl Atlas {
             uv_y: self.base_line / self.size.height() as f32,
             uv_dx: glyph.width / self.size.width() as f32,
             uv_dy: glyph.height / self.size.height() as f32,
+            top: glyph.top,
+            left: glyph.left,
+            advance_x: glyph.advance_x,
+            advance_y: glyph.advance_y,
+            bearing_x: glyph.bearing_x,
+            bearing_y: glyph.bearing_y
         })
     }
 

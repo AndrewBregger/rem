@@ -1,0 +1,19 @@
+Primary:
+Basic text layout on a line. The characters should be formatted
+correctly. (Maybe the render grid should be started for this.)
+
+Adapt to multi line string to be rendered correctly.
+
+
+Render Grid:
+A grid is to be used to render text at the beginning because
+handling mono-space fonts are simpiler and have less things to worry
+about when placing the characters on the screen. 
+For Mono-space, each character will only need to be formatted within its
+grid cell, not the entire line.
+
+
+Edit Pane:
+
+
+Edit Engine:

@@ -9,6 +9,8 @@ mod font;
 #[macro_use] mod render;
 mod window;
 
+static BATCH_SIZE: usize = 1024;
+
 use std::collections::HashMap;
 use gl::types::*;
 use font::Rasterizer;
@@ -45,7 +47,6 @@ impl App {
     }
 
     fn setup(&self) {
-        
         self.renderer.setup(&self.window);
     }
 
@@ -88,11 +89,9 @@ struct Vertex {
 }
 
 // static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
-fn build_geometry(glyph: &render::Glyph) -> Vec<Vertex> {
+fn build_geometry(glyph: &render::Glyph, x: f32, y: f32) -> Vec<Vertex> {
     let mut buf = Vec::new();
 
-    let x = 10f32;
-    let y = 10f32;
 
     // 0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
     // 0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // bottom right
@@ -185,7 +184,7 @@ extern "system" fn callback(source: GLenum, gltype: GLenum, id: GLuint, severity
         gl::DEBUG_SEVERITY_HIGH => "HIGH",
         gl::DEBUG_SEVERITY_MEDIUM => "MEDIUM",
         gl::DEBUG_SEVERITY_LOW => "LOW",
-        gl::DEBUG_SEVERITY_NOTIFICATION => "NOTIFICATION",
+        gl::DEBUG_SEVERITY_NOTIFICATION => return,
         _ => "UNKNOWN",
     };
     
@@ -218,7 +217,7 @@ fn main() {
 
     let font = font::FontDesc {
         style: font::Style::Normal,
-        path: std::path::Path::new("dev/DroidSansMono.ttf").to_path_buf(),
+        path: std::path::Path::new("dev/DroidSans.ttf").to_path_buf(),
         size: font::Size::new(60u16),
         id: 0
     };
@@ -230,8 +229,19 @@ fn main() {
     
     let mut glyphmap = HashMap::new();
 
-    for c in 33..126 {
+    for c in 33..=126 {
+        let g = font::GlyphDesc {
+            ch: c as u32,
+            font: font.clone(),
+        };
 
+        let glyph = rasterizer.load_glyph(g).unwrap();
+        let glyph = atlas.insert(glyph).unwrap();
+
+        glyphmap.insert(c, glyph);
+    }
+
+    for c in 161..256 {
         let g = font::GlyphDesc {
             ch: c as u32,
             font: font.clone(),
@@ -271,22 +281,43 @@ fn main() {
         glCheck!();
         gl::BufferData(
             gl::ARRAY_BUFFER,
-            (mem::size_of::<Vertex>() * 4) as isize,
+            (mem::size_of::<InstanceData>() * BATCH_SIZE) as isize,
             ptr::null(),
-            gl::STATIC_DRAW);
+            gl::STREAM_DRAW);
         glCheck!();
 
 
-        let stride = 2 * mem::size_of::<f32>();
+
+        let size = mem::size_of::<InstanceData>() as i32;
+        let float_size = mem::size_of::<f32>();
 
         gl::EnableVertexAttribArray(0);
-        gl::VertexAttribPointer(0, 2 as i32, gl::FLOAT, gl::FALSE, mem::size_of::<Vertex>() as i32, ptr::null());
+        gl::VertexAttribPointer(0, 2 as i32, gl::FLOAT, gl::FALSE, size, ptr::null());
+        gl::VertexAttribDivisor(0, 1);
         glCheck!();
+    
+        let mut stride = 2;
 
         // color attribute
         gl::EnableVertexAttribArray(1);
-        gl::VertexAttribPointer(1, 2 as i32, gl::FLOAT, gl::FALSE, mem::size_of::<Vertex>() as i32, stride as *const _);
+        gl::VertexAttribPointer(1, 4 as i32, gl::FLOAT, gl::FALSE, size, (stride * float_size) as *const _);
+        gl::VertexAttribDivisor(1, 1);
         glCheck!();
+
+        stride += 4;
+
+        gl::EnableVertexAttribArray(2);
+        gl::VertexAttribPointer(2, 4 as i32, gl::FLOAT, gl::FALSE, size, (stride * float_size) as *const _);
+        gl::VertexAttribDivisor(2, 1);
+        glCheck!();
+
+        stride += 4;
+
+        gl::EnableVertexAttribArray(3);
+        gl::VertexAttribPointer(3, 3 as i32, gl::FLOAT, gl::FALSE, size, (stride * float_size) as *const _);
+        gl::VertexAttribDivisor(3, 1);
+        glCheck!();
+
 
         gl::BindVertexArray(0);
         glCheck!();
@@ -299,11 +330,26 @@ fn main() {
     let ortho = glm::ortho(0f32, w as f32, h as f32, 0.0, -1f32, 1f32);
     glCheck!();
 
+    let face = rasterizer.get_face(&font).unwrap();
+    let cell_size = if let Some(metrics) = &face.metrics {
+        (metrics.width, metrics.height)
+    }
+    else {
+        println!("Metrics for font not found");
+        (20f32, 30f32)
+    };
+
+    println!("{:?}", cell_size);
     shader.activate();
     shader.set_perspective(ortho);
     glCheck!();
 
     shader.set_font_atlas(&atlas);
+    glCheck!();
+
+    shader.set_cell_size(cell_size);
+    glCheck!();
+
     shader.deactivate();
     glCheck!();
 
@@ -319,19 +365,14 @@ fn main() {
         glCheck!();
     }
     
-
     
-
-    let mut character = 'g' as u32;
-    let mut dirty = true;
-
     loop {
         let mut running = true;
 
         let process = |event| {
             match event {
                 // LoopDestroyed => running = false,
-                Event::DeviceEvent { ref event, .. } => (),
+                Event::DeviceEvent { .. } => (),
                 Event::WindowEvent { ref event, .. } => match event {
                     WindowEvent::KeyboardInput { ref input, .. } => {
                         if let Some(VirtualKeyCode::Escape) = input.virtual_keycode {
@@ -343,12 +384,7 @@ fn main() {
                     }
                     // Maybe using KeyboardInput and processing that would
                     // give a better using experience instead of using ReceivedCharacter
-                    WindowEvent::ReceivedCharacter(ch) => {
-                        if character != (*ch as u32) {
-                            character = (*ch as u32);
-                            dirty = true;
-                        }
-                    }, 
+                    WindowEvent::ReceivedCharacter(_) => (), 
                     WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
                     _ => (),
                 },
@@ -371,31 +407,15 @@ fn main() {
         
         atlas.bind();
         shader.activate();
+
         unsafe {
             
             gl::BindVertexArray(vao);
             glCheck!();
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
             gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-
-            if dirty  {
-                dirty = false;
-                let glyph = glyphmap.get(&character).unwrap();
-                //let vertices = build_geometry(glyph);
-                let vertices = build_total(&window::Size::new(800f64, 1000f64));
-            
-                glCheck!();
-                gl::BufferData(
-                    gl::ARRAY_BUFFER,
-                    (mem::size_of::<Vertex>() * 4) as isize,
-                    vertices.as_ptr() as *const _,
-                    gl::STATIC_DRAW);
-                glCheck!();
-
-            }
-
-
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
+    
+            draw_string("Hello, world", &glyphmap); //&font, &atlas);
             glCheck!();
 
             gl::BindTexture(gl::TEXTURE_2D, 0);
@@ -406,9 +426,89 @@ fn main() {
         }
 
         shader.deactivate();
-
-        
         window.swap_buffers();
     }
 
+}
+
+// #[repr(C)]
+#[derive(Debug, Clone, Copy)]
+struct InstanceData {
+    // cell
+    x: f32,
+    y: f32,
+    
+    // glyth info
+    width: f32,
+    height: f32,
+    bearing_x: f32,
+    bearing_y: f32,
+
+    // texture coordinates
+    uv_x: f32,
+    uv_y: f32,
+    uv_dx: f32,
+    uv_dy: f32,
+    // Mayby this could be used if I move to a texture array of atlases?.
+    // texture_id: f32,
+
+    // text metrics offsets for the character
+
+    r: f32,
+    g: f32,
+    b: f32,
+}
+
+fn draw_string(msg: &str,  glyphmap: &HashMap<u32, render::Glyph>/*font: &font::FontDesc, atlas: &render::Atlas*/) {
+    
+    // converting this to a cell based system.
+    let mut cell = (0, 0);
+    let mut instance_data = Vec::new();
+    for c in msg.chars() {
+        if c == ' ' {
+            cell.0 += 1;
+            continue;
+        }
+        
+        let glyph = glyphmap.get(&(c as u32)).unwrap();
+        
+        let instance = InstanceData {
+            x: cell.0 as f32,
+            y: cell.1 as f32,
+            
+            // text metrics offsets for the character
+            width: glyph.width,
+            height: glyph.height,
+            bearing_x: glyph.bearing_x,
+            bearing_y: glyph.bearing_y,
+            // texture coordinates
+            uv_x: glyph.uv_x,
+            uv_y: glyph.uv_y,
+            uv_dx: glyph.uv_dx,
+            uv_dy: glyph.uv_dy,
+            // Mayby this could be used if I move to a texture array of atlases?.
+            // texture_id: f32,
+
+
+            r: 0.3,
+            g: 0.5,
+            b: 0.2,
+        };
+
+        instance_data.push(instance);
+        cell.0 += 1;
+    }
+
+//    println!("{:?}", instance_data);
+
+    unsafe {
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (mem::size_of::<InstanceData>() * instance_data.len()) as isize,
+            instance_data.as_ptr() as *const _,
+            gl::STREAM_DRAW);
+    
+        gl::DrawElementsInstanced(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null(), instance_data.len() as i32);
+        glCheck!();
+    }
 }

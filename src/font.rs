@@ -34,7 +34,14 @@ pub struct FontDesc {
 
 // global metrics of the fonts.
 #[derive(Debug, Clone)]
-pub struct FontMetrics {}
+pub struct FontMetrics {
+    pub width: f32,
+    pub height: f32,
+    pub x_scale: f32,
+    pub y_scale: f32,
+    pub ascender: f32,
+    pub descender: f32,
+}
 
 // desciption of a glyph and font.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,11 +56,11 @@ fn convert_to_ft(size: &Size) -> u32 {
 }
 
 #[derive(Debug, Clone)]
-struct Face {
+pub struct Face {
     pub font: FontDesc,
     pub face: ft::Face,
     pub glyphs: HashMap<GlyphDesc, RasterizedGlyph>,
-    pub metrics: FontMetrics,
+    pub metrics: Option<FontMetrics>
 }
 
 // rasterized glyph for a specified size
@@ -69,6 +76,8 @@ pub struct RasterizedGlyph {
     pub height: f32,
     pub top: f32,
     pub left: f32,
+    pub bearing_x: f32,
+    pub bearing_y: f32,
 }
 
 pub trait Rasterizer {
@@ -98,12 +107,12 @@ impl Hash for GlyphDesc {
 }
 
 impl Face {
-    pub fn new(face: ft::Face, font: FontDesc) -> Self {
+    pub fn new(face: ft::Face, font: FontDesc, metrics: Option<FontMetrics>) -> Self {
         Self {
             font,
             face,
             glyphs: HashMap::new(),
-            metrics: FontMetrics {},
+            metrics: metrics
         }
     }
 
@@ -129,6 +138,10 @@ impl FTRasterizer {
             fonts: HashMap::new(),
             dpi_factor,
         })
+    }
+
+    pub fn get_face(&self, font: &FontDesc) -> Option<&Face> {
+        self.faces.get(font)
     }
 
     fn normalize_buffer(bitmap: &ft::Bitmap) -> (f32, f32, Vec<u8>) {
@@ -233,7 +246,20 @@ impl Rasterizer for FTRasterizer {
             let ft_face = self
                 .library
                 .new_face(pathbuf, glyph.font.style.clone() as isize)?;
-            let face = Face::new(ft_face, glyph.font.clone());
+
+            let metrics = match ft_face.size_metrics() {
+                Some(metrics) => Some(FontMetrics {
+                    width: (metrics.max_advance as f32),
+                    height: (metrics.height as f32),
+                    x_scale: (metrics.x_scale as f32),
+                    y_scale: (metrics.y_scale as f32),
+                    ascender: (metrics.ascender as f32) / 64f32,
+                    descender: (metrics.descender as f32) / 64f32,
+                }),
+                None => None,
+            };
+
+            let face = Face::new(ft_face, glyph.font.clone(), metrics);
 
             self.maybe_insert_font_desc(&glyph.font);
             self.faces.insert(glyph.font.clone(), face);
@@ -247,6 +273,7 @@ impl Rasterizer for FTRasterizer {
         let gl = Self::rasterize_glyph(face, index)?;
 
         let (w, h, buf) = Self::normalize_buffer(&gl.bitmap());
+        let metrics = gl.metrics();
 
         let ft::Vector { x, y } = gl.advance();
 
@@ -255,12 +282,14 @@ impl Rasterizer for FTRasterizer {
             glyph_index: index,
             size: glyph.font.size.clone(),
             bitmap: buf,
-            advance_x: x as f32,
-            advance_y: y as f32,
+            advance_x: (metrics.horiAdvance as f32) / 64.0,
+            advance_y: 0.0,
             width: w,
             height: h,
             top: gl.bitmap_top() as f32,
             left: gl.bitmap_left() as f32,
+            bearing_x: (metrics.horiBearingX as f32) / 64.0,
+            bearing_y: (metrics.horiBearingY as f32) / 64.0
         };
 
         face.glyphs.insert(glyph.clone(), rglyph);
