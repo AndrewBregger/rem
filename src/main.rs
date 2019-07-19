@@ -29,6 +29,7 @@ struct App {
 }
 
 static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
+static RECT_INDEX_DATA: [u32; 4] = [0, 1, 2, 3];
 
 impl App {
     fn new() -> Self {
@@ -208,7 +209,9 @@ fn main() {
 
     let mut vbo = 0;
     let mut ibo = 0;
+    let mut ibo2 = 0;
     let mut vao = 0;
+    let mut vao2 = 0;
 
     let mut atlas = render::Atlas::new(window::Size::from(1024f32, 1024f32)).unwrap();
     glCheck!();
@@ -257,13 +260,17 @@ fn main() {
     glCheck!();
 
     let mut shader = render::TextShader::new().unwrap();
+    let mut rect_shader = render::RectShader::new().unwrap();
+
     glCheck!();
 
     unsafe {
         gl::GenVertexArrays(1, &mut vao);
+        gl::GenVertexArrays(1, &mut vao2);
         glCheck!();
         gl::GenBuffers(1, &mut vbo);
         gl::GenBuffers(1, &mut ibo);
+        gl::GenBuffers(1, &mut ibo2);
         glCheck!();
 
         gl::BindVertexArray(vao);
@@ -321,6 +328,38 @@ fn main() {
 
         gl::BindVertexArray(0);
         glCheck!();
+
+        
+        rect_shader.activate();
+
+        
+        gl::BindVertexArray(vao2);
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo2);
+        gl::BufferData(
+            gl::ELEMENT_ARRAY_BUFFER,
+            (mem::size_of::<u32>() * INDEX_DATA.len()) as isize,
+            RECT_INDEX_DATA.as_ptr() as *const _,
+            gl::STATIC_DRAW);
+        glCheck!();
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+
+        gl::EnableVertexAttribArray(0);
+        gl::VertexAttribPointer(0, 2 as i32, gl::FLOAT, gl::FALSE, size, ptr::null());
+        gl::VertexAttribDivisor(0, 1);
+        glCheck!();
+    
+        let mut stride = 2 + 8;
+
+        // color attribute
+        gl::EnableVertexAttribArray(1);
+        gl::VertexAttribPointer(1, 3 as i32, gl::FLOAT, gl::FALSE, size, (stride * float_size) as *const _);
+        gl::VertexAttribDivisor(1, 1);
+        glCheck!();
+
+        gl::BindVertexArray(0);
+        glCheck!();
+
+        rect_shader.deactivate();
     }
 
     let (w, h) = window.dimensions();
@@ -328,7 +367,7 @@ fn main() {
     glCheck!();
 
     let ortho = glm::ortho(0f32, w as f32, h as f32, 0.0, -1f32, 1f32);
-    glCheck!();
+    //glCheck!();
 
     let face = rasterizer.get_face(&font).unwrap();
     let cell_size = if let Some(metrics) = &face.metrics {
@@ -341,16 +380,26 @@ fn main() {
 
     println!("{:?}", cell_size);
     shader.activate();
+
     shader.set_perspective(ortho);
     glCheck!();
 
     shader.set_font_atlas(&atlas);
     glCheck!();
-
-    shader.set_cell_size(cell_size);
+shader.set_cell_size(cell_size);
     glCheck!();
 
     shader.deactivate();
+    glCheck!();
+
+    rect_shader.activate();
+
+    rect_shader.set_perspective(ortho);
+
+    rect_shader.set_cell_size(cell_size);
+
+    rect_shader.deactivate();
+
     glCheck!();
 
     unsafe {
@@ -365,7 +414,16 @@ fn main() {
         glCheck!();
     }
     
-    
+    let msg = "Hello, World"; 
+
+    for c in msg.chars() {
+        if c == ' ' {
+            continue;
+        }
+
+        let glyph = glyphmap.get(&(c as u32)).unwrap(); 
+        println!("{}: {:?}", c, glyph);
+    }
     loop {
         let mut running = true;
 
@@ -406,26 +464,82 @@ fn main() {
         }
         
         atlas.bind();
-        shader.activate();
 
         unsafe {
             
-            gl::BindVertexArray(vao);
             glCheck!();
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+//            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
+//            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
     
-            draw_string("Hello, world", &glyphmap); //&font, &atlas);
-            glCheck!();
+            // draw_string("Hello, world", &glyphmap); //&font, &atlas);
+
+            let mut cell = (0, 0);
+            let mut instance_data = Vec::new();
+            for c in msg.chars() {
+                if c == ' ' {
+                    cell.0 += 1;
+                    continue;
+                }
+                
+                let glyph = glyphmap.get(&(c as u32)).unwrap();
+                
+                let instance = InstanceData {
+                    x: cell.0 as f32,
+                    y: cell.1 as f32,
+                    
+                    // text metrics offsets for the character
+                    width: glyph.width,
+                    height: glyph.height,
+                    bearing_x: glyph.left,
+                    bearing_y: glyph.top,
+                    // texture coordinates
+                    uv_x: glyph.uv_x,
+                    uv_y: glyph.uv_y,
+                    uv_dx: glyph.uv_dx,
+                    uv_dy: glyph.uv_dy,
+                    // Mayby this could be used if I move to a texture array of atlases?.
+                    // texture_id: f32,
+
+                    r: 1.0,
+                    g: 0.5,
+                    b: 0.2,
+                };
+
+                instance_data.push(instance);
+                cell.0 += 1;
+            }
+
+
+            unsafe {
+                gl::BufferData(
+                    gl::ARRAY_BUFFER,
+                    (mem::size_of::<InstanceData>() * instance_data.len()) as isize,
+                    instance_data.as_ptr() as *const _,
+                    gl::STREAM_DRAW);
+            
+                shader.activate();
+                gl::BindVertexArray(vao);
+                gl::DrawElementsInstanced(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null(), instance_data.len() as i32);
+                gl::BindVertexArray(0);
+                shader.deactivate();
+
+                rect_shader.activate();
+                gl::BindVertexArray(vao2);
+                gl::DrawElementsInstanced(gl::LINE_LOOP, 6, gl::UNSIGNED_INT, ptr::null(), instance_data.len() as i32);
+                gl::BindVertexArray(0);
+                rect_shader.deactivate();
+
+                glCheck!();
+            }
+
 
             gl::BindTexture(gl::TEXTURE_2D, 0);
 
-            gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, 0);
+//            gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+//            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, 0);
             gl::BindVertexArray(0);
         }
 
-        shader.deactivate();
         window.swap_buffers();
     }
 
@@ -489,8 +603,7 @@ fn draw_string(msg: &str,  glyphmap: &HashMap<u32, render::Glyph>/*font: &font::
             // Mayby this could be used if I move to a texture array of atlases?.
             // texture_id: f32,
 
-
-            r: 0.3,
+            r: 1.0,
             g: 0.5,
             b: 0.2,
         };
@@ -499,7 +612,7 @@ fn draw_string(msg: &str,  glyphmap: &HashMap<u32, render::Glyph>/*font: &font::
         cell.0 += 1;
     }
 
-//    println!("{:?}", instance_data);
+    println!("{:?}", instance_data);
 
     unsafe {
         gl::BufferData(
