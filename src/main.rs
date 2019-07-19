@@ -11,13 +11,14 @@ mod window;
 
 static BATCH_SIZE: usize = 1024;
 
+use font::Rasterizer;
 use std::collections::HashMap;
 use gl::types::*;
-use font::Rasterizer;
 use std::path::PathBuf;
 use glutin::*;
 use std::sync::mpsc;
 use std::thread::Builder;
+use std::result::Result;
 use std::mem;
 use std::ptr;
 use std::str;
@@ -219,39 +220,43 @@ fn main() {
     println!("Window DPI: {}", window.window_dpi());
 
     let font = font::FontDesc {
-        style: font::Style::Normal,
+        name: "DroidSans".to_string(),
         path: std::path::Path::new("dev/DroidSans.ttf").to_path_buf(),
-        size: font::Size::new(60u16),
-        id: 0
     };
     
 
-    let mut rasterizer = font::FTRasterizer::new(window.window_dpi()).unwrap();
+    let mut rasterizer =
+        font::FreeTypeRasterizer::new(window.window_dpi() as f32).unwrap();
 
     glCheck!();
+
+    let key = rasterizer.get_font(font).unwrap();
     
     let mut glyphmap = HashMap::new();
 
+    let fontsize = font::FontSize { pixel_size: 20f32 };
+
     for c in 33..=126 {
-        let g = font::GlyphDesc {
+        let g = font::GlyphKey {
             ch: c as u32,
-            font: font.clone(),
+            font: key,
+            size: fontsize,
         };
 
-        let glyph = rasterizer.load_glyph(g).unwrap();
-        let glyph = atlas.insert(glyph).unwrap();
-
+        let glyph = rasterizer.load_glyph(g, fontsize).unwrap();
+        let glyph = atlas.insert(&glyph).unwrap();
         glyphmap.insert(c, glyph);
     }
 
     for c in 161..256 {
-        let g = font::GlyphDesc {
+        let g = font::GlyphKey {
             ch: c as u32,
-            font: font.clone(),
+            font: key,
+            size: fontsize,
         };
 
-        let glyph = rasterizer.load_glyph(g).unwrap();
-        let glyph = atlas.insert(glyph).unwrap();
+        let glyph = rasterizer.load_glyph(g, fontsize).unwrap();
+        let glyph = atlas.insert(&glyph).unwrap();
 
         glyphmap.insert(c, glyph);
     }
@@ -369,14 +374,8 @@ fn main() {
     let ortho = glm::ortho(0f32, w as f32, h as f32, 0.0, -1f32, 1f32);
     //glCheck!();
 
-    let face = rasterizer.get_face(&font).unwrap();
-    let cell_size = if let Some(metrics) = &face.metrics {
-        (metrics.width, metrics.height)
-    }
-    else {
-        println!("Metrics for font not found");
-        (20f32, 30f32)
-    };
+    let metrics = rasterizer.get_metrics(key, fontsize).unwrap();
+    let cell_size = (metrics.average_advance, metrics.line_height);
 
     println!("{:?}", cell_size);
     shader.activate();

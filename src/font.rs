@@ -6,11 +6,13 @@ use std::hash::{Hash, Hasher};
 use std::cmp::Eq;
 use std::sync::atomic::{AtomicU16, Ordering::SeqCst};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FontSize {
     pub pixel_size: f32,
 }
 
+impl Eq for FontSize {
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(u8)]
@@ -20,9 +22,10 @@ pub enum Style {
     Bold,
 }
 
-type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
-enum Error {
+#[derive(Debug, Clone)]
+pub enum Error {
     FTError(ft::Error),
     MissingFont,
     InvalidGlyph,
@@ -38,9 +41,9 @@ pub struct FontDesc {
 //     pub size: Size,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct FontKey {
-    token: u16,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FontKey {
+    pub token: u16,
 }
 
 // global metrics of the fonts.
@@ -163,7 +166,7 @@ impl Face {
         }
     }
 
-    fn render_glyph(&mut self, glyph: GlyphKey, size: FontSize) -> Result<ft::GlyphSlot> {
+    fn render_glyph(&self, glyph: GlyphKey, size: FontSize) -> Result<ft::GlyphSlot> {
         self.set_size(size);
         
         // gets the index of the character
@@ -250,7 +253,7 @@ impl FreeTypeRasterizer {
         }
     }
 
-    fn find_font(&mut self, font: FontKey) -> Result<&Face> {
+    fn find_font(&self, font: FontKey) -> Result<&Face> {
         self.faces.get(&font).ok_or(Error::MissingFont)
     }
 
@@ -259,7 +262,7 @@ impl FreeTypeRasterizer {
         
         let face = self.find_font(font)?;
     
-        let bitmap = face.render_glyph(glyph, size)?;
+        let bitmap = face.render_glyph(glyph.clone(), size)?;
 
         let (w, h, buffer) = Self::normalize_buffer(&bitmap.bitmap());
 
@@ -329,7 +332,7 @@ impl Rasterizer for FreeTypeRasterizer {
 
     fn get_font(&mut self, font: FontDesc) -> Result<FontKey> {
         match self.fonts.get(&font.path) {
-            Some(key) => Ok(*key),
+            Some(key) => Ok(key.clone()),
             None => {
                 // build the face if it hasnt been seen yet.
                 self.fonts.insert(font.path.clone(), FontKey::next());

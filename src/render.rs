@@ -187,26 +187,28 @@ impl Renderer {
 
         let mut atlas = Atlas::new(Size::from(1024f32, 1024f32))
             .map_err(|e| Error::FontError(format!("{:?}", e)))?;
-    
+
+        let mut rasterizer = font::FreeTypeRasterizer::new(dpi as f32)
+            .map_err(|e| Error::FontError(format!("{:?}", e)))?;
+
         let font = font::FontDesc {
-            style: font::Style::Normal,
+            name: "DroidSansMono".to_string(),
             path: std::path::Path::new("dev/DroidSansMono.ttf").to_path_buf(),
-            size: font::Size::new(24u16),
-            id: 0
         };
+
+        let key = rasterizer.get_font(font).unwrap();
         
-        let glyph = font::GlyphDesc {
+        let glyph = font::GlyphKey {
             ch: 'a' as u32,
-            font: font.clone(),
+            font: key,
+            size: font::FontSize { pixel_size: 20f32 },
         };
 
-        let mut rasterizer = font::FTRasterizer::new(dpi)
+
+        let glyph = rasterizer.load_glyph(glyph.clone(), glyph.size)
             .map_err(|e| Error::FontError(format!("{:?}", e)))?;
 
-        let glyph = rasterizer.load_glyph(glyph)
-            .map_err(|e| Error::FontError(format!("{:?}", e)))?;
-
-        let glyph = atlas.insert(glyph).map_err(|e| Error::FontError(format!("{:?}", e)))?;
+        let glyph = atlas.insert(&glyph).map_err(|e| Error::FontError(format!("{:?}", e)))?;
 
         struct Vertex {
             pos: [f32; 2],
@@ -541,10 +543,10 @@ impl Atlas {
             uv_dy: glyph.height / self.size.height() as f32,
             top: glyph.top,
             left: glyph.left,
-            advance_x: glyph.advance_x,
-            advance_y: glyph.advance_y,
-            bearing_x: glyph.bearing_x,
-            bearing_y: glyph.bearing_y
+            advance_x: 0.0,
+            advance_y: 0.0,
+            bearing_x: 0.0,
+            bearing_y: 0.0
         })
     }
 

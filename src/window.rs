@@ -1,7 +1,7 @@
 // Needed glutin modules and structures
 pub use super::glutin::{
-    ContextBuilder, DeviceEvent, ElementState, Event, EventsLoop, NotCurrent, PossiblyCurrent,
-    VirtualKeyCode, WindowBuilder, WindowEvent, WindowedContext,
+    DeviceEvent, ElementState, Event, EventsLoop, NotCurrent, PossiblyCurrent,
+    VirtualKeyCode, WindowEvent, WindowedContext
 };
 
 // needed for error handling
@@ -110,10 +110,13 @@ impl Window {
         }
     }
 
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     fn build_window(
         event_loop: &EventsLoop,
         size: Size,
     ) -> Result<WindowedContext<PossiblyCurrent>> {
+        use super::glutin::{WindowBuilder, ContextBuilder};
+
         let window = WindowBuilder::new()
             .with_title("REM Editor")
             .with_dimensions(size.into())
@@ -129,6 +132,8 @@ impl Window {
             // these should be checked or passed an not assumed. {
             .with_gl_debug_flag(true)
             .with_gl_robustness(glutin::Robustness::TryRobustLoseContextOnReset)
+            .with_gl_profile(glutin::GlProfile::Core)
+            .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 0)))
             .with_double_buffer(Some(true))
             .with_srgb(true)
             .with_vsync(true)
@@ -143,38 +148,45 @@ impl Window {
         })
     }
 
+    #[cfg(target_os = "macos")]
+    fn build_window(
+        event_loop: &EventsLoop,
+        size: Size,
+    ) -> Result<WindowedContext<PossiblyCurrent>> {
+        use super::glutin::os::macos::WindowBuilderExt;
+        use super::glutin::{WindowBuilder, ContextBuilder};
+
+        let windowbuilder = WindowBuilder::new()
+            .with_title("REM Editor")
+            .with_dimensions(size.into())
+            .with_resizable(true)
+            // for now
+            .with_decorations(true);
+            // test right now
+            // .with_transparency(true);
+
+        let context = ContextBuilder::new()
+            // these should be checked or passed an not assumed. {
+            .with_gl_debug_flag(true)
+            .with_gl_robustness(glutin::Robustness::TryRobustLoseContextOnReset)
+            .with_gl_profile(glutin::GlProfile::Core)
+            .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 0)))
+            .with_double_buffer(Some(true))
+            .with_srgb(true)
+            .with_vsync(true)
+            // }
+            .build_windowed(windowbuilder, event_loop)
+            .map_err(|e| Error::NoWindow(e))?;
+
+        Ok(unsafe {
+            context
+                .make_current()
+                .map_err(|(_, e)| Error::NoContext(e))?
+        })
+    }
+
     pub fn poll_events<F: FnMut(Event)>(&mut self, f: F) {
         self.event_loop.poll_events(f);
-        /*
-        let mut running = true;
-        while running {
-            self.event_loop.poll_events(|event| {
-                match event {
-                    // LoopDestroyed => running = false,
-                    Event::DeviceEvent { ref event, .. } => (),
-                    Event::WindowEvent { ref event, .. } => match event {
-                        WindowEvent::KeyboardInput { ref input, .. } => {
-                            if let Some(VirtualKeyCode::Escape) = input.virtual_keycode {
-                                if input.state == ElementState::Pressed {
-                                    println!("GoodBye crual world!");
-                                    running = false;
-                                }
-                            }
-                        }
-                        WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
-                        _ => (),
-                    },
-                    _ => (),
-                };
-            });
-            unsafe {
-                gl::ClearColor(0.2, 0.4, 0.4, 1.0);
-                gl::Clear(gl::COLOR_BUFFER_BIT);
-            }
-
-            self.window.swap_buffers().unwrap();
-        }
-        */
     }
 
     pub fn swap_buffers(&mut self) {
@@ -186,4 +198,6 @@ impl Window {
         gl::load_with(|s| self.window.get_proc_address(s) as *const _);
         Ok(())
     }
+
+
 }
