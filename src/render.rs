@@ -543,10 +543,10 @@ impl Atlas {
             uv_dy: glyph.height / self.size.height() as f32,
             top: glyph.top,
             left: glyph.left,
-            advance_x: 0.0,
-            advance_y: 0.0,
-            bearing_x: 0.0,
-            bearing_y: 0.0
+            advance_x: glyph.advance_x,
+            advance_y: glyph.advance_y,
+            bearing_x: glyph.bearing_x,
+            bearing_y: glyph.bearing_y, 
         })
     }
 

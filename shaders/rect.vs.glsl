@@ -15,7 +15,7 @@ void main() {
     position.x = (gl_VertexID == 0 || gl_VertexID == 1) ? 1.0 : 0.0;
     position.y = (gl_VertexID == 0 || gl_VertexID == 3) ? 0.0 : 1.0;
     
-    vec2 final_position = cell_position + cell * position;
+    vec2 final_position = cell_position + cell_size * position;
 
     gl_Position = projection * vec4(final_position, 0.0, 1.0);
     

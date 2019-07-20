@@ -97,6 +97,9 @@ pub struct RasterizedGlyph {
     pub bearing_x: f32,
     pub bearing_y: f32,
 
+    pub advance_x: f32,
+    pub advance_y: f32,
+
     pub bitmap: Vec<u8>,
 }
 
@@ -261,19 +264,24 @@ impl FreeTypeRasterizer {
         let font = glyph.font; 
         
         let face = self.find_font(font)?;
-    
+        
+
         let bitmap = face.render_glyph(glyph.clone(), size)?;
 
-        let (w, h, buffer) = Self::normalize_buffer(&bitmap.bitmap());
+        let metrics = bitmap.metrics();
 
+        let (w, h, buffer) = Self::normalize_buffer(&bitmap.bitmap());
+    
         Ok( RasterizedGlyph {
             glyph: glyph.ch,
             width: w,
             height: h,
             top: bitmap.bitmap_top() as f32,
             left: bitmap.bitmap_left() as f32,
-            bearing_x: 0f32,
-            bearing_y: 0f32,
+            bearing_x: (metrics.horiBearingX >> 6) as f32,
+            bearing_y: (metrics.horiBearingY >> 6) as f32,
+            advance_x: (metrics.horiAdvance >> 6) as f32,
+            advance_y: 0f32,
             bitmap: buffer,
         })
     }

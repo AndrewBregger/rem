@@ -209,6 +209,7 @@ fn main() {
     }
 
     let mut vbo = 0;
+    let mut vbo2 = 0;
     let mut ibo = 0;
     let mut ibo2 = 0;
     let mut vao = 0;
@@ -220,8 +221,8 @@ fn main() {
     println!("Window DPI: {}", window.window_dpi());
 
     let font = font::FontDesc {
-        name: "DroidSans".to_string(),
-        path: std::path::Path::new("dev/DroidSans.ttf").to_path_buf(),
+        name: "DroidSansMono".to_string(),
+        path: std::path::Path::new("dev/DroidSansMono.ttf").to_path_buf(),
     };
     
 
@@ -274,6 +275,7 @@ fn main() {
         gl::GenVertexArrays(1, &mut vao2);
         glCheck!();
         gl::GenBuffers(1, &mut vbo);
+        gl::GenBuffers(1, &mut vbo2);
         gl::GenBuffers(1, &mut ibo);
         gl::GenBuffers(1, &mut ibo2);
         glCheck!();
@@ -334,10 +336,8 @@ fn main() {
         gl::BindVertexArray(0);
         glCheck!();
 
-        
-        rect_shader.activate();
+        let size = mem::size_of::<RectInstanceData>() as i32;
 
-        
         gl::BindVertexArray(vao2);
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo2);
         gl::BufferData(
@@ -346,14 +346,22 @@ fn main() {
             RECT_INDEX_DATA.as_ptr() as *const _,
             gl::STATIC_DRAW);
         glCheck!();
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo2);
+        glCheck!();
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (mem::size_of::<RectInstanceData>() * BATCH_SIZE) as isize,
+            ptr::null(),
+            gl::STREAM_DRAW);
+        glCheck!();
 
         gl::EnableVertexAttribArray(0);
         gl::VertexAttribPointer(0, 2 as i32, gl::FLOAT, gl::FALSE, size, ptr::null());
         gl::VertexAttribDivisor(0, 1);
         glCheck!();
     
-        let mut stride = 2 + 8;
+        let mut stride = 2;
 
         // color attribute
         gl::EnableVertexAttribArray(1);
@@ -363,8 +371,6 @@ fn main() {
 
         gl::BindVertexArray(0);
         glCheck!();
-
-        rect_shader.deactivate();
     }
 
     let (w, h) = window.dimensions();
@@ -385,7 +391,7 @@ fn main() {
 
     shader.set_font_atlas(&atlas);
     glCheck!();
-shader.set_cell_size(cell_size);
+    shader.set_cell_size(cell_size);
     glCheck!();
 
     shader.deactivate();
@@ -423,6 +429,47 @@ shader.set_cell_size(cell_size);
         let glyph = glyphmap.get(&(c as u32)).unwrap(); 
         println!("{}: {:?}", c, glyph);
     }
+
+    
+    println!("W: {}, H: {} {:?}", w, h, cell_size);
+
+    let num_rows = w as f32 / cell_size.1;
+    let num_cols = h as f32 / cell_size.0;
+
+
+    println!("{} {}", num_cols, num_rows);
+
+    let num_rows = num_rows.floor() as u32;
+    let num_cols = num_cols.floor() as u32;
+    println!("{} {}", num_cols, num_rows);
+
+
+    let mut rect_instance_data = Vec::with_capacity((num_rows * num_cols) as usize);
+
+    for i in 0..num_cols {
+        for j in 0..num_rows {
+            let instance = RectInstanceData {
+                x: i as f32,
+                y: j as f32,
+                r: 0.8,
+                g: 0.2,
+                b: 0.5,
+            };
+
+            rect_instance_data.push(instance);
+        }
+    }
+    
+    unsafe {
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo2);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (mem::size_of::<RectInstanceData>() * rect_instance_data.len()) as isize,
+            rect_instance_data.as_ptr() as *const _,
+            gl::STREAM_DRAW);
+        gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+    }
+
     loop {
         let mut running = true;
 
@@ -489,8 +536,8 @@ shader.set_cell_size(cell_size);
                     // text metrics offsets for the character
                     width: glyph.width,
                     height: glyph.height,
-                    bearing_x: glyph.left,
-                    bearing_y: glyph.top,
+                    offset_x: glyph.bearing_x,
+                    offset_y: glyph.bearing_y,
                     // texture coordinates
                     uv_x: glyph.uv_x,
                     uv_y: glyph.uv_y,
@@ -499,32 +546,73 @@ shader.set_cell_size(cell_size);
                     // Mayby this could be used if I move to a texture array of atlases?.
                     // texture_id: f32,
 
-                    r: 1.0,
-                    g: 0.5,
-                    b: 0.2,
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
                 };
 
                 instance_data.push(instance);
                 cell.0 += 1;
             }
+        
+            for i in 0..num_cols {
+                let c = (i % 10) + '0' as u32;
+                let glyph = glyphmap.get(&c).unwrap();
+                
+                let instance = InstanceData {
+                    x: i as f32,
+                    y: 2.0,
+                    
+                    // text metrics offsets for the character
+                    width: glyph.width,
+                    height: glyph.height,
+                    offset_x: glyph.bearing_x,
+                    offset_y: glyph.bearing_y,
+                    // texture coordinates
+                    uv_x: glyph.uv_x,
+                    uv_y: glyph.uv_y,
+                    uv_dx: glyph.uv_dx,
+                    uv_dy: glyph.uv_dy,
+                    // Mayby this could be used if I move to a texture array of atlases?.
+                    // texture_id: f32,
+
+                    r: 0.4,
+                    g: 0.1,
+                    b: 1.0,
+                };
+
+                instance_data.push(instance);
+
+            }
+
+    
 
 
             unsafe {
+                shader.activate();
+    
+                gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
                 gl::BufferData(
                     gl::ARRAY_BUFFER,
                     (mem::size_of::<InstanceData>() * instance_data.len()) as isize,
                     instance_data.as_ptr() as *const _,
                     gl::STREAM_DRAW);
-            
-                shader.activate();
+                gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+
                 gl::BindVertexArray(vao);
+            
+                gl::Enable(gl::BLEND);
                 gl::DrawElementsInstanced(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null(), instance_data.len() as i32);
+
                 gl::BindVertexArray(0);
                 shader.deactivate();
 
+
                 rect_shader.activate();
                 gl::BindVertexArray(vao2);
-                gl::DrawElementsInstanced(gl::LINE_LOOP, 6, gl::UNSIGNED_INT, ptr::null(), instance_data.len() as i32);
+
+                gl::Disable(gl::BLEND);
+                gl::DrawElementsInstanced(gl::LINE_LOOP, 4, gl::UNSIGNED_INT, ptr::null(), rect_instance_data.len() as i32);
                 gl::BindVertexArray(0);
                 rect_shader.deactivate();
 
@@ -554,8 +642,8 @@ struct InstanceData {
     // glyth info
     width: f32,
     height: f32,
-    bearing_x: f32,
-    bearing_y: f32,
+    offset_x: f32,
+    offset_y: f32,
 
     // texture coordinates
     uv_x: f32,
@@ -572,6 +660,16 @@ struct InstanceData {
     b: f32,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct RectInstanceData {
+    x: f32,
+    y: f32,
+    r: f32,
+    g: f32,
+    b: f32,
+}
+
+/*
 fn draw_string(msg: &str,  glyphmap: &HashMap<u32, render::Glyph>/*font: &font::FontDesc, atlas: &render::Atlas*/) {
     
     // converting this to a cell based system.
@@ -592,8 +690,8 @@ fn draw_string(msg: &str,  glyphmap: &HashMap<u32, render::Glyph>/*font: &font::
             // text metrics offsets for the character
             width: glyph.width,
             height: glyph.height,
-            bearing_x: glyph.bearing_x,
-            bearing_y: glyph.bearing_y,
+            left: glyph.left,
+            top: glyph.top,
             // texture coordinates
             uv_x: glyph.uv_x,
             uv_y: glyph.uv_y,
@@ -624,3 +722,4 @@ fn draw_string(msg: &str,  glyphmap: &HashMap<u32, render::Glyph>/*font: &font::
         glCheck!();
     }
 }
+*/

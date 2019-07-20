@@ -14,12 +14,18 @@ out vec3 Color;
 
  void main() {
     vec2 cell_position = cell_size * cell;
+    vec2 glyphSize = glyph.xy;
+
+    vec2 glyphOffset;
+
+    glyphOffset.x = glyph.z;
+    glyphOffset.y = cell_size.y - glyph.w;
 
     vec2 position;
     position.x = (gl_VertexID == 0 || gl_VertexID == 1) ? 1.0 : 0.0;
     position.y = (gl_VertexID == 0 || gl_VertexID == 3) ? 0.0 : 1.0;
 
-    vec2 final_position = cell_position + glyph.xy * position + glyph.zw;
+    vec2 final_position = cell_position + glyphSize * position + glyphOffset;
 
     gl_Position = projection * vec4(final_position, 0, 1.0);
 
