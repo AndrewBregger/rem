@@ -1,9 +1,6 @@
 Primary:
-Basic text layout on a line. The characters should be formatted
-correctly. (Maybe the render grid should be started for this.)
-
-Adapt to multi line string to be rendered correctly.
-
+Currently this rendering is all done in main. Abstract this to
+a text renderer (?).
 
 Render Grid:
 A grid is to be used to render text at the beginning because
@@ -17,3 +14,18 @@ Edit Pane:
 
 
 Edit Engine:
+
+Next:
+Define and explain the concepts above (Render Grid, Edit Pane, Edit
+Engine).
+Abstract the application concept.
+GlyphCache
+Pane
+
+
+Done:
+Basic TTF rasterizing
+Basic floating text rendering
+Basic grid text rendering
+Window abstraction
+
