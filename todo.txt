@@ -2,6 +2,8 @@ Primary:
 Currently this rendering is all done in main. Abstract this to
 a text renderer (?).
 
+Look into font-kit instead of writing my own complete font rasterizer.
+
 Render Grid:
 A grid is to be used to render text at the beginning because
 handling mono-space fonts are simpiler and have less things to worry
