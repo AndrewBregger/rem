@@ -8,10 +8,13 @@ mod shader;
 mod font;
 #[macro_use] mod render;
 mod window;
+mod pane;
+mod config;
 
 static BATCH_SIZE: usize = 1024;
 
 use font::Rasterizer;
+use render::{GlyphCache};
 use std::collections::HashMap;
 use gl::types::*;
 use std::path::PathBuf;
@@ -22,6 +25,8 @@ use std::result::Result;
 use std::mem;
 use std::ptr;
 use std::str;
+use crate::render::CacheMissProto;
+
 //
 struct App {
     window: window::Window,
@@ -42,7 +47,7 @@ impl App {
     
 
         Self {
-            window: window,
+            window,
             renderer: render::Renderer::new(dpi).unwrap(),
             running: true,
         }
@@ -62,7 +67,7 @@ impl App {
                     WindowEvent::KeyboardInput { ref input, .. } => {
                         if let Some(VirtualKeyCode::Escape) = input.virtual_keycode {
                             if input.state == ElementState::Pressed {
-                                println!("GoodBye crual world!");
+                                println!("GoodBye cruel world!");
                                 running = false;
                             }
                         }
@@ -215,53 +220,24 @@ fn main() {
     let mut vao = 0;
     let mut vao2 = 0;
 
-    let mut atlas = render::Atlas::new(window::Size::from(1024f32, 1024f32)).unwrap();
-    glCheck!();
-    
-    println!("Window DPI: {}", window.window_dpi());
-
     let font = font::FontDesc {
         name: "DroidSansMono".to_string(),
         path: std::path::Path::new("dev/DroidSansMono.ttf").to_path_buf(),
     };
-    
 
-    let mut rasterizer =
-        font::FreeTypeRasterizer::new(window.window_dpi() as f32).unwrap();
+    let mut atlas = render::Atlas::new(window::Size::from(1024f32, 1024f32)).unwrap();
 
-    glCheck!();
-
-    let key = rasterizer.get_font(font).unwrap();
-    
-    let mut glyphmap = HashMap::new();
-
+    let mut rasterizer = font::FreeTypeRasterizer::new(window.window_dpi() as f32).unwrap();
     let fontsize = font::FontSize { pixel_size: 20f32 };
 
-    for c in 33..=126 {
-        let g = font::GlyphKey {
-            ch: c as u32,
-            font: key,
-            size: fontsize,
-        };
+    let mut cache = GlyphCache::new(rasterizer, config::Font { font, size: fontsize}, window.window_dpi() as f32, CacheMissProto::ErrorOnMiss).unwrap();
+    glCheck!();
+    
+    println!("Window DPI: {}", window.window_dpi());
 
-        let glyph = rasterizer.load_glyph(g, fontsize).unwrap();
-        let glyph = atlas.insert(&glyph).unwrap();
-        glyphmap.insert(c, glyph);
-    }
-
-    for c in 161..256 {
-        let g = font::GlyphKey {
-            ch: c as u32,
-            font: key,
-            size: fontsize,
-        };
-
-        let glyph = rasterizer.load_glyph(g, fontsize).unwrap();
-        let glyph = atlas.insert(&glyph).unwrap();
-
-        glyphmap.insert(c, glyph);
-    }
-
+    cache.load_glyphs(|glyph| {
+        atlas.insert(&glyph).unwrap()
+    });
 
     glCheck!();
 
@@ -380,7 +356,7 @@ fn main() {
     let ortho = glm::ortho(0f32, w as f32, h as f32, 0.0, -1f32, 1f32);
     //glCheck!();
 
-    let metrics = rasterizer.get_metrics(key, fontsize).unwrap();
+    let metrics = cache.metrics();
     let cell_size = (metrics.average_advance, metrics.line_height);
 
     println!("{:?}", cell_size);
@@ -426,7 +402,7 @@ fn main() {
             continue;
         }
 
-        let glyph = glyphmap.get(&(c as u32)).unwrap(); 
+        let glyph = cache.get(c as u32).unwrap(); 
         println!("{}: {:?}", c, glyph);
     }
 
@@ -502,8 +478,6 @@ fn main() {
             break
         }
 
-    
-
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
             glCheck!();
@@ -527,7 +501,7 @@ fn main() {
                     continue;
                 }
                 
-                let glyph = glyphmap.get(&(c as u32)).unwrap();
+                let glyph = cache.get(c as u32).unwrap();
                 
                 let instance = InstanceData {
                     x: cell.0 as f32,
@@ -557,7 +531,7 @@ fn main() {
         
             for i in 0..num_cols {
                 let c = (i % 10) + '0' as u32;
-                let glyph = glyphmap.get(&c).unwrap();
+                let glyph = cache.get(c).unwrap();
                 
                 let instance = InstanceData {
                     x: i as f32,

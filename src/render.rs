@@ -3,14 +3,16 @@ use gl::types::*;
 
 use std::mem;
 use std::ptr;
+use std::collections::HashMap;
 
 use super::glm;
+use super::config;
 use std::ffi::CString;
 use super::shader;
 use super::font;
 use super::window;
 use super::window::Size;
-use super::font::{RasterizedGlyph, Rasterizer};
+use super::font::{RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};
 
 static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
 
@@ -22,9 +24,10 @@ static RECT_FS_SOURCE: &'static str = "shaders/rect.fs.glsl";
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    FontError(String),
+    FontError(font::Error),
     RenderError(String),
     AtlasError(String),
+    CacheMissChar(GlyphKey)
 }
 type Result<T> = ::std::result::Result<T, Error>;
 
@@ -185,11 +188,10 @@ impl Renderer {
         let mut ibo = 0;
         let mut vao = 0;
 
-        let mut atlas = Atlas::new(Size::from(1024f32, 1024f32))
-            .map_err(|e| Error::FontError(format!("{:?}", e)))?;
+        let mut atlas = Atlas::new(Size::from(1024f32, 1024f32))?;
 
         let mut rasterizer = font::FreeTypeRasterizer::new(dpi as f32)
-            .map_err(|e| Error::FontError(format!("{:?}", e)))?;
+            .map_err(|e| Error::FontError(e))?;
 
         let font = font::FontDesc {
             name: "DroidSansMono".to_string(),
@@ -206,9 +208,9 @@ impl Renderer {
 
 
         let glyph = rasterizer.load_glyph(glyph.clone(), glyph.size)
-            .map_err(|e| Error::FontError(format!("{:?}", e)))?;
+            .map_err(|e| Error::FontError(e))?;
 
-        let glyph = atlas.insert(&glyph).map_err(|e| Error::FontError(format!("{:?}", e)))?;
+        let glyph = atlas.insert(&glyph)?;
 
         struct Vertex {
             pos: [f32; 2],
@@ -568,6 +570,114 @@ impl Atlas {
         else {
             Err(Error::AtlasError("last line of atlas".to_owned()))
         }
+    }
+}
+
+// should this be a Cache for all glyphs or just the a cache
+// for a given font face?
+// if all fonts:
+//      then there needs to be a method of looking up the glyph
+//      of a specific character, font, and size.
+//      It is reasonable to assume that multiple fonts will be loaded
+//      to render different text on the screen (tabs, file info, gutters, and messages).
+#[derive(Debug, Clone)]
+pub struct GlyphCache<T> {
+    glyphs: HashMap<GlyphKey, Glyph>,
+    rasterizer: T,
+    font: FontKey,
+    font_size: FontSize,
+    metrics: font::Metrics,
+    proto: CacheMissProto,
+}
+
+// What happens when a character and size is requested that doesn't exist.
+#[derive(Debug, Clone)]
+pub enum CacheMissProto {
+    ErrorOnMiss,
+//    RasterizeChar,
+//    Custom(Fn(GlyphKey) -> Glyph)
+}
+//
+//impl CacheMissProto {
+//    fn custom<P>(f: P) -> Self
+//        where P: Fn(GlyphKey) -> Glyph {
+//        CacheMissProto::Custom(f)
+//    }
+//}
+
+
+impl<T> GlyphCache<T>
+    where T: Rasterizer {
+    pub fn new(mut rasterizer: T, font: config::Font, dpi: f32, proto: CacheMissProto) -> Result<Self> {
+        let font_size = font.size;
+        let font = rasterizer.get_font(font.font).map_err(|e| Error::FontError(e))?;
+        let metrics = rasterizer.get_metrics(font, font_size).map_err(|e| Error::FontError(e))?;
+
+        Ok(Self {
+            glyphs: HashMap::new(),
+            rasterizer,
+            font,
+            font_size,
+            metrics,
+            proto
+        })
+    }
+
+    pub fn metrics(&self) -> &font::Metrics {
+        &self.metrics
+    }
+
+    pub fn get(&self, ch: u32) -> Result<&Glyph> {
+        let glyph = GlyphKey {
+            ch,
+            font: self.font,
+            size: self.font_size,
+        };
+
+        self.request(&glyph)
+    }
+
+    pub fn request(&self, glyph: &GlyphKey) -> Result<&Glyph> {
+        match self.glyphs.get(glyph) {
+            Some(g) => Ok(g),
+            None => Err(Error::CacheMissChar(glyph.clone()))
+        }
+    }
+
+    pub fn load_glyph<F>(&mut self, glyph: GlyphKey, loader: F)
+        where F: FnMut(RasterizedGlyph) -> Glyph {
+
+        let rasterizer = &mut self.rasterizer;
+    
+        self.glyphs.entry(glyph.clone()).or_insert_with(|| {
+            let size = glyph.size.clone();
+            let rglyph = rasterizer.load_glyph(glyph, size).unwrap();
+
+            loader(rglyph)
+        });
+    }
+
+
+    pub fn load_glyphs<F>(&mut self, loader: F) 
+        where F: FnMut(RasterizedGlyph) -> Glyph {
+       for c in 33..=126 {
+            let g = font::GlyphKey {
+                ch: c as u32,
+                font: self.font,
+                size: self.font_size
+            };
+            self.load_glyph(g, loader);
+       }
+
+       for c in 161..=256 {
+            let g = font::GlyphKey {
+                ch: c as u32,
+                font: self.font,
+                size: self.font_size,
+            };
+
+            self.load_glyph(g, loader);
+       }
     }
 }
 

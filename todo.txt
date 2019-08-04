@@ -1,16 +1,6 @@
 Primary:
-Currently this rendering is all done in main. Abstract this to
-a text renderer (?).
 
 Look into font-kit instead of writing my own complete font rasterizer.
-
-Render Grid:
-A grid is to be used to render text at the beginning because
-handling mono-space fonts are simpiler and have less things to worry
-about when placing the characters on the screen. 
-For Mono-space, each character will only need to be formatted within its
-grid cell, not the entire line.
-
 
 Edit Pane:
 
@@ -24,6 +14,8 @@ Abstract the application concept.
 GlyphCache
 Pane
 
+Open Questions:
+Where should the text color be stored?
 
 Done:
 Basic TTF rasterizing
@@ -31,3 +23,11 @@ Basic floating text rendering
 Basic grid text rendering
 Window abstraction
 
+Render Grid:
+A grid is to be used to render text at the beginning because
+handling mono-space fonts are simpiler and have less things to worry
+about when placing the characters on the screen.
+For Mono-space, each character will only need to be formatted within its
+grid cell, not the entire line.
+
+I have decided to do traditional text rendering.
