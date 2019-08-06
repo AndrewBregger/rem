@@ -1,168 +1,55 @@
 extern crate freetype as ft;
 extern crate gl;
+extern crate ropey;
 extern crate glutin;
 extern crate image;
 extern crate nalgebra_glm as glm;
 
-mod shader;
 mod font;
 #[macro_use] mod render;
-mod window;
 mod pane;
 mod config;
+mod editor_core;
 
-static BATCH_SIZE: usize = 1024;
-
-use font::Rasterizer;
-use render::{GlyphCache};
-use std::collections::HashMap;
-use gl::types::*;
-use std::path::PathBuf;
-use glutin::*;
 use std::sync::mpsc;
 use std::thread::Builder;
 use std::result::Result;
 use std::mem;
 use std::ptr;
 use std::str;
-use crate::render::CacheMissProto;
 
-//
-struct App {
-    window: window::Window,
-    renderer: render::Renderer,
-    pub running: bool,
+
+use editor_core::Document;
+use font::Rasterizer;
+use render::{GlyphCache, window};
+use std::collections::HashMap;
+use gl::types::*;
+use std::path::PathBuf;
+
+
+static BATCH_SIZE: usize = 1024;
+struct Loader {
+    pub atlas: render::Atlas,
+}
+
+impl Loader {
+    fn new() -> Self {
+        Self {
+            atlas: render::Atlas::new(window::Size::from(1024f32, 1024f32)).unwrap(),
+        }
+    }
+
+
+}
+
+impl render::GlyphLoader for Loader {
+    fn load_glyph(&mut self, glyph: &font::RasterizedGlyph) -> render::Result<render::Glyph> {
+        Ok(self.atlas.insert(glyph)?)
+    }
 }
 
 static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
 static RECT_INDEX_DATA: [u32; 4] = [0, 1, 2, 3];
-
-impl App {
-    fn new() -> Self {
-        let event_loop = window::EventsLoop::new();
-        let window = window::Window::new(event_loop, window::Size::from(1078.0, 428.0)).unwrap();
-        let dpi = window.window_dpi();
-
-        gl::load_with(|s| window.window.get_proc_address(s) as *const _);
-    
-
-        Self {
-            window,
-            renderer: render::Renderer::new(dpi).unwrap(),
-            running: true,
-        }
-    }
-
-    fn setup(&self) {
-        self.renderer.setup(&self.window);
-    }
-
-    fn process_events(&mut self) {
-        let mut running = true;
-        let process = |event| {
-            match event {
-                // LoopDestroyed => running = false,
-                Event::DeviceEvent { ref event, .. } => (),
-                Event::WindowEvent { ref event, .. } => match event {
-                    WindowEvent::KeyboardInput { ref input, .. } => {
-                        if let Some(VirtualKeyCode::Escape) = input.virtual_keycode {
-                            if input.state == ElementState::Pressed {
-                                println!("GoodBye cruel world!");
-                                running = false;
-                            }
-                        }
-                    }
-                    WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
-                    _ => (),
-                },
-                _ => (),
-            }
-        };
-
-
-        self.window.poll_events(process); 
-        self.running = running; 
-        
-        self.renderer.draw();
-
-        self.window.swap_buffers();
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-struct Vertex {
-    pos: [f32; 2],
-    uv: [f32; 2]
-}
-
-// static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
-fn build_geometry(glyph: &render::Glyph, x: f32, y: f32) -> Vec<Vertex> {
-    let mut buf = Vec::new();
-
-
-    // 0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
-    // 0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // bottom right
-    //-0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // bottom left
-    //-0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // top left 
-    
-    buf.push(Vertex {
-        pos: [x, y + glyph.height],
-        uv: [glyph.uv_x, glyph.uv_y + glyph.uv_dy],
-    }); // bottom left
-    
-    buf.push(Vertex {
-        pos: [x + glyph.width, y + glyph.height],
-        uv: [glyph.uv_x + glyph.uv_dx, glyph.uv_y + glyph.uv_dy],
-    }); // bottom right
-
-    buf.push(Vertex {
-        pos: [x + glyph.width, y],
-        uv: [glyph.uv_x + glyph.uv_dx, glyph.uv_y],
-    }); // top right
-
-    buf.push(Vertex {
-        pos: [x, y],
-        uv: [glyph.uv_x, glyph.uv_y],
-    }); // top left
-    
-    buf
-}
-
-// static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
-fn build_total(size: &window::Size) -> Vec<Vertex> {
-    let mut buf = Vec::new();
-
-    let x = 0f32;
-    let y = 0f32;
-
-    // 0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
-    // 0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // bottom right
-    //-0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // bottom left
-    //-0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // top left 
-    
-    buf.push(Vertex {
-        pos: [x, y + size.height() as f32],
-        uv: [0.0, 1.0],
-    }); // bottom left
-    
-    buf.push(Vertex {
-        pos: [x + size.width() as f32, y + size.height() as f32],
-        uv: [1.0, 1.0]
-    }); // bottom right
-
-    buf.push(Vertex {
-        pos: [x + size.width() as f32, y],
-        uv: [1.0, 0.0]
-    }); // top right
-
-    buf.push(Vertex {
-        pos: [0.0, 0.0],
-        uv: [0.0, 0.0],
-    }); // top left
-    
-    buf
-}
-
 
 extern "system" fn callback(source: GLenum, gltype: GLenum, id: GLuint, severity: GLenum,
                             length: GLsizei, message: *const GLchar, userParam: *mut std::ffi::c_void) {
@@ -235,9 +122,10 @@ fn main() {
     
     println!("Window DPI: {}", window.window_dpi());
 
-    cache.load_glyphs(|glyph| {
-        atlas.insert(&glyph).unwrap()
-    });
+
+    let mut loader = Loader::new();
+    cache.load_glyphs(&mut loader);
+    let atlas = loader.atlas;
 
     glCheck!();
 

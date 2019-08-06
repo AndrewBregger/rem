@@ -1,35 +1,22 @@
 use gl;
 use gl::types::*;
+use nalgebra_glm as glm;
 
 use std::mem;
 use std::ptr;
 use std::collections::HashMap;
-
-use super::glm;
-use super::config;
 use std::ffi::CString;
-use super::shader;
-use super::font;
+
+use crate::config;
+use super::font::{self, RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};;
+
 use super::window;
 use super::window::Size;
-use super::font::{RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};
+use super::shader::{TextShader, RectShader};
+
+use super::Result;
 
 static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
-
-static TEXT_VS_SOURCE: &'static str = "shaders/vs.glsl";
-static TEXT_FS_SOURCE: &'static str = "shaders/fs.glsl";
-
-static RECT_VS_SOURCE: &'static str = "shaders/rect.vs.glsl";
-static RECT_FS_SOURCE: &'static str = "shaders/rect.fs.glsl";
-
-#[derive(Debug, Clone)]
-pub enum Error {
-    FontError(font::Error),
-    RenderError(String),
-    AtlasError(String),
-    CacheMissChar(GlyphKey)
-}
-type Result<T> = ::std::result::Result<T, Error>;
 
 macro_rules! glCheck {
     () => {{
@@ -54,6 +41,11 @@ macro_rules! glCheck {
 }
 
 
+pub trait GlyphLoader {
+    fn load_glyph(&mut self, glyph: &RasterizedGlyph) -> Result<Glyph>;
+}
+
+
 pub struct Renderer {
     // vertex buffer object
     vbo: u32,
@@ -65,266 +57,6 @@ pub struct Renderer {
     shader: TextShader,
     // all of the vertex atlases
     atlases: Vec<Atlas>,
-}
-
-pub struct TextShader {
-    program: u32,
-    // uniform location
-    per_loc: i32,
-    // uniform atlas
-    atlas_loc: i32,
-    // size of each cell
-    cell_loc: i32,
-    // shader used
-    active: bool,
-}
-
-pub struct RectShader {
-    program: u32,
-    // uniform location
-    per_loc: i32,
-    // size of each cell
-    cell_loc: i32,
-    // shader used
-    active: bool,
-}
-
-impl TextShader {
-    pub fn new() -> Result<Self> {
-        let vs_src = shader::load_file(TEXT_VS_SOURCE);
-        let fs_src = shader::load_file(TEXT_FS_SOURCE);
-
-        let vs = shader::compile_shader(vs_src.as_str(), gl::VERTEX_SHADER);
-        let fs = shader::compile_shader(fs_src.as_str(), gl::FRAGMENT_SHADER);
-
-        let program = shader::link_shader(vs, fs);
-
-        
-        let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr()) };
-        let atlas_loc = unsafe { gl::GetUniformLocation(program, CString::new("atlas").unwrap().as_ptr()) };
-        let cell_loc = unsafe { gl::GetUniformLocation(program, CString::new("cell_size").unwrap().as_ptr()) };
-
-        Ok(Self {
-            program,
-            per_loc,
-            atlas_loc,
-            cell_loc,
-            active: false,
-        })
-    }
-
-    pub fn set_perspective(&self, per: glm::Mat4) {
-        unsafe { gl::UniformMatrix4fv(self.per_loc, 1, gl::FALSE, per.as_ptr()) };
-    }
-
-    pub fn set_font_atlas(&self, atlas: &Atlas) {
-        unsafe { gl::Uniform1i(self.atlas_loc, atlas.texture_id as i32) };
-    }
-
-    pub fn set_cell_size(&self, size: (f32, f32)) {
-        unsafe { gl::Uniform2f(self.cell_loc, size.0, size.1) };
-    }
-
-    pub fn activate(&mut self) {
-        unsafe { gl::UseProgram(self.program) };
-        self.active = true;
-    }
-
-    pub fn deactivate(&mut self) {
-        unsafe { gl::UseProgram(0) };
-        self.active = false;
-    }
-}
-
-impl RectShader {
-    pub fn new() -> Result<Self> {
-        let vs_src = shader::load_file(RECT_VS_SOURCE);
-        let fs_src = shader::load_file(RECT_FS_SOURCE);
-
-        let vs = shader::compile_shader(vs_src.as_str(), gl::VERTEX_SHADER);
-        let fs = shader::compile_shader(fs_src.as_str(), gl::FRAGMENT_SHADER);
-
-        let program = shader::link_shader(vs, fs);
-
-        
-        let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr()) };
-        let cell_loc = unsafe { gl::GetUniformLocation(program, CString::new("cell_size").unwrap().as_ptr()) };
-
-        Ok(Self {
-            program,
-            per_loc,
-            cell_loc,
-            active: false,
-        })
-    }
-
-    pub fn set_perspective(&self, per: glm::Mat4) {
-        unsafe { gl::UniformMatrix4fv(self.per_loc, 1, gl::FALSE, per.as_ptr()) };
-    }
-
-    pub fn set_cell_size(&self, size: (f32, f32)) {
-        unsafe { gl::Uniform2f(self.cell_loc, size.0, size.1) };
-    }
-
-    pub fn activate(&mut self) {
-        if self.active { return; }
-        unsafe { gl::UseProgram(self.program) };
-        self.active = true;
-    }
-
-    pub fn deactivate(&mut self) {
-        if !self.active { return; }
-        unsafe { gl::UseProgram(0) };
-        self.active = false;
-    }
-}
-
-
-
-impl Renderer {
-    pub fn new(dpi: f64) -> Result<Self> {
-    
-        let mut vbo = 0;
-        let mut ibo = 0;
-        let mut vao = 0;
-
-        let mut atlas = Atlas::new(Size::from(1024f32, 1024f32))?;
-
-        let mut rasterizer = font::FreeTypeRasterizer::new(dpi as f32)
-            .map_err(|e| Error::FontError(e))?;
-
-        let font = font::FontDesc {
-            name: "DroidSansMono".to_string(),
-            path: std::path::Path::new("dev/DroidSansMono.ttf").to_path_buf(),
-        };
-
-        let key = rasterizer.get_font(font).unwrap();
-        
-        let glyph = font::GlyphKey {
-            ch: 'a' as u32,
-            font: key,
-            size: font::FontSize { pixel_size: 20f32 },
-        };
-
-
-        let glyph = rasterizer.load_glyph(glyph.clone(), glyph.size)
-            .map_err(|e| Error::FontError(e))?;
-
-        let glyph = atlas.insert(&glyph)?;
-
-        struct Vertex {
-            pos: [f32; 2],
-            uv: [f32; 2]
-        }
-
-        fn build_geometry(glyph: &Glyph) -> Vec<Vertex> {
-            let mut buf = Vec::new();
-
-            let x = 10f32;
-            let y = 10f32;
-
-            // 0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
-            // 0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // bottom right
-            //-0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // bottom left
-            //-0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // top left 
-            
-            buf.push(Vertex {
-                pos: [x + glyph.width, y],
-                uv: [glyph.uv_x + glyph.uv_dx, glyph.uv_y],
-            }); // top right
-
-            buf.push(Vertex {
-                pos: [x + glyph.width, y + glyph.height],
-                uv: [glyph.uv_x + glyph.uv_dx, glyph.uv_y + glyph.uv_dy],
-            }); // bottom right
-
-            buf.push(Vertex {
-                pos: [x, y + glyph.height],
-                uv: [glyph.uv_x, glyph.uv_y + glyph.uv_dy],
-            }); // bottom left
-
-            buf.push(Vertex {
-                pos: [x, y],
-                uv: [glyph.uv_x, glyph.uv_y],
-            }); // top left
-
-            buf
-        }
-
-        let vertices = build_geometry(&glyph);
-
-        unsafe {
-            gl::GenVertexArrays(1, &mut vao);
-            gl::BindVertexArray(vao);
-            gl::GenBuffers(1, &mut vbo);
-            gl::GenBuffers(1, &mut ibo);
-
-            gl::BindBuffer(gl::VERTEX_ARRAY, vbo);
-            gl::BufferData(
-                gl::VERTEX_ARRAY,
-                (mem::size_of::<Vertex>() * vertices.len()) as isize,
-                vertices.as_ptr() as *const _,
-                gl::STATIC_DRAW);
-
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
-            gl::BufferData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                (mem::size_of::<u32>() * INDEX_DATA.len()) as isize,
-                INDEX_DATA.as_ptr() as *const _,
-                gl::STATIC_DRAW);
-
-            let stride = 2 * mem::size_of::<f32>();
-
-            gl::EnableVertexAttribArray(0);
-            gl::VertexAttribPointer(0, 2 as i32, gl::FLOAT, gl::FALSE, mem::size_of::<Vertex>() as i32, ptr::null());
-
-            // color attribute
-            gl::EnableVertexAttribArray(1);
-            gl::VertexAttribPointer(1, 2 as i32, gl::FLOAT, gl::FALSE, mem::size_of::<Vertex>() as i32, stride as *const _);
-
-            gl::BindVertexArray(0);
-        }
-
-
-
-        Ok(Self {
-            vbo,
-            ibo,
-            vao,
-            shader: TextShader::new()?,
-            atlases: vec![atlas]
-        })
-    }
-
-    pub fn draw(&self) {
-        unsafe {
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-
-            gl::BindVertexArray(self.vao);
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ibo);
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
-        }
-    }
-
-    pub fn setup(&self, window: &window::Window) {
-        let (w, h) = window.dimensions();
-        let ortho = glm::ortho(0f32, w as f32, h as f32, 0.0, -1f32, 1f32);
-
-
-        // self.shader.set_perspective(ortho);
-        self.shader.set_font_atlas(self.atlases.first().unwrap());
-
-        unsafe {
-            gl::Viewport(0, 0, w as i32, h as i32);
-            gl::Enable(gl::BLEND);
-            gl::BlendFunc(gl::SRC1_COLOR, gl::ONE_MINUS_SRC1_COLOR);
-            // gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-            gl::Enable(gl::MULTISAMPLE);
-            gl::DepthMask(gl::FALSE);
-
-            gl::ClearColor(1.0, 1.0, 1.0, 1.0);
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -644,8 +376,8 @@ impl<T> GlyphCache<T>
         }
     }
 
-    pub fn load_glyph<F>(&mut self, glyph: GlyphKey, loader: F)
-        where F: FnMut(RasterizedGlyph) -> Glyph {
+    pub fn load_glyph<F>(&mut self, glyph: GlyphKey, loader: &mut F)
+        where F: GlyphLoader {
 
         let rasterizer = &mut self.rasterizer;
     
@@ -653,13 +385,13 @@ impl<T> GlyphCache<T>
             let size = glyph.size.clone();
             let rglyph = rasterizer.load_glyph(glyph, size).unwrap();
 
-            loader(rglyph)
+            loader.load_glyph(&rglyph).unwrap()
         });
     }
 
 
-    pub fn load_glyphs<F>(&mut self, loader: F) 
-        where F: FnMut(RasterizedGlyph) -> Glyph {
+    pub fn load_glyphs<F>(&mut self, loader: &mut F) 
+        where F: GlyphLoader {
        for c in 33..=126 {
             let g = font::GlyphKey {
                 ch: c as u32,

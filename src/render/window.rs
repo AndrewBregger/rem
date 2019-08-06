@@ -1,14 +1,16 @@
+
+
 // Needed glutin modules and structures
-pub use super::glutin::{
+pub use glutin::{
     DeviceEvent, ElementState, Event, EventsLoop, NotCurrent, PossiblyCurrent,
     VirtualKeyCode, WindowEvent, WindowedContext
 };
 
 // needed for error handling
-pub use super::glutin::{ContextError, CreationError};
+pub use glutin::{ContextError, CreationError};
 
 // needed for size
-use super::glutin::dpi::LogicalSize;
+use glutin::dpi::LogicalSize;
 use std::convert::Into;
 
 #[derive(Debug)]
