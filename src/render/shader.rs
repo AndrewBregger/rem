@@ -116,8 +116,6 @@ pub struct TextShader {
     atlas_loc: i32,
     // size of each cell
     cell_loc: i32,
-    // shader used
-    active: bool,
 }
 
 pub struct RectShader {
@@ -126,19 +124,17 @@ pub struct RectShader {
     per_loc: i32,
     // size of each cell
     cell_loc: i32,
-    // shader used
-    active: bool,
 }
 
 impl TextShader {
     pub fn new() -> Result<Self> {
-        let vs_src = shader::load_file(TEXT_VS_SOURCE);
-        let fs_src = shader::load_file(TEXT_FS_SOURCE);
+        let vs_src = load_file(TEXT_VS_SOURCE);
+        let fs_src = load_file(TEXT_FS_SOURCE);
 
-        let vs = shader::compile_shader(vs_src.as_str(), gl::VERTEX_SHADER);
-        let fs = shader::compile_shader(fs_src.as_str(), gl::FRAGMENT_SHADER);
+        let vs = compile_shader(vs_src.as_str(), gl::VERTEX_SHADER);
+        let fs = compile_shader(fs_src.as_str(), gl::FRAGMENT_SHADER);
 
-        let program = shader::link_shader(vs, fs);
+        let program = link_shader(vs, fs);
 
         
         let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr()) };
@@ -150,7 +146,6 @@ impl TextShader {
             per_loc,
             atlas_loc,
             cell_loc,
-            active: false,
         })
     }
 
@@ -166,26 +161,24 @@ impl TextShader {
         unsafe { gl::Uniform2f(self.cell_loc, size.0, size.1) };
     }
 
-    pub fn activate(&mut self) {
+    pub fn activate(&self) {
         unsafe { gl::UseProgram(self.program) };
-        self.active = true;
     }
 
-    pub fn deactivate(&mut self) {
+    pub fn deactivate(&self) {
         unsafe { gl::UseProgram(0) };
-        self.active = false;
     }
 }
 
 impl RectShader {
     pub fn new() -> Result<Self> {
-        let vs_src = shader::load_file(RECT_VS_SOURCE);
-        let fs_src = shader::load_file(RECT_FS_SOURCE);
+        let vs_src = load_file(RECT_VS_SOURCE);
+        let fs_src = load_file(RECT_FS_SOURCE);
 
-        let vs = shader::compile_shader(vs_src.as_str(), gl::VERTEX_SHADER);
-        let fs = shader::compile_shader(fs_src.as_str(), gl::FRAGMENT_SHADER);
+        let vs = compile_shader(vs_src.as_str(), gl::VERTEX_SHADER);
+        let fs = compile_shader(fs_src.as_str(), gl::FRAGMENT_SHADER);
 
-        let program = shader::link_shader(vs, fs);
+        let program = link_shader(vs, fs);
 
         
         let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr()) };
@@ -195,7 +188,6 @@ impl RectShader {
             program,
             per_loc,
             cell_loc,
-            active: false,
         })
     }
 
@@ -208,14 +200,10 @@ impl RectShader {
     }
 
     pub fn activate(&mut self) {
-        if self.active { return; }
         unsafe { gl::UseProgram(self.program) };
-        self.active = true;
     }
 
     pub fn deactivate(&mut self) {
-        if !self.active { return; }
         unsafe { gl::UseProgram(0) };
-        self.active = false;
     }
 }

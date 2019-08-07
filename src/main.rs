@@ -10,6 +10,7 @@ mod font;
 mod pane;
 mod config;
 mod editor_core;
+mod window;
 
 use std::sync::mpsc;
 use std::thread::Builder;
@@ -21,13 +22,12 @@ use std::str;
 
 use editor_core::Document;
 use font::Rasterizer;
-use render::{GlyphCache, window};
+use render::{GlyphCache};
 use std::collections::HashMap;
 use gl::types::*;
 use std::path::PathBuf;
 
 
-static BATCH_SIZE: usize = 1024;
 struct Loader {
     pub atlas: render::Atlas,
 }
@@ -117,8 +117,8 @@ fn main() {
     let mut rasterizer = font::FreeTypeRasterizer::new(window.window_dpi() as f32).unwrap();
     let fontsize = font::FontSize { pixel_size: 20f32 };
 
-    let mut cache = GlyphCache::new(rasterizer, config::Font { font, size: fontsize}, window.window_dpi() as f32, CacheMissProto::ErrorOnMiss).unwrap();
-    glCheck!();
+    let mut cache = GlyphCache::new(rasterizer, config::Font { font, size: fontsize}, window.window_dpi() as f32, render::CacheMissProto::ErrorOnMiss).unwrap();
+    // glCheck!();
     
     println!("Window DPI: {}", window.window_dpi());
 
@@ -127,25 +127,25 @@ fn main() {
     cache.load_glyphs(&mut loader);
     let atlas = loader.atlas;
 
-    glCheck!();
+    // glCheck!();
 
-    let mut shader = render::TextShader::new().unwrap();
-    let mut rect_shader = render::RectShader::new().unwrap();
+    // let mut shader = render::TextShader::new().unwrap();
+    // let mut rect_shader = render::RectShader::new().unwrap();
 
-    glCheck!();
-
+    // glCheck!();
+/*
     unsafe {
         gl::GenVertexArrays(1, &mut vao);
         gl::GenVertexArrays(1, &mut vao2);
-        glCheck!();
+        // glCheck!();
         gl::GenBuffers(1, &mut vbo);
         gl::GenBuffers(1, &mut vbo2);
         gl::GenBuffers(1, &mut ibo);
         gl::GenBuffers(1, &mut ibo2);
-        glCheck!();
+        // glCheck!();
 
         gl::BindVertexArray(vao);
-        glCheck!();
+        // glCheck!();
 
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
         gl::BufferData(
@@ -153,16 +153,16 @@ fn main() {
             (mem::size_of::<u32>() * INDEX_DATA.len()) as isize,
             INDEX_DATA.as_ptr() as *const _,
             gl::STATIC_DRAW);
-        glCheck!();
+        // glCheck!();
 
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-        glCheck!();
+        // glCheck!();
         gl::BufferData(
             gl::ARRAY_BUFFER,
             (mem::size_of::<InstanceData>() * BATCH_SIZE) as isize,
             ptr::null(),
             gl::STREAM_DRAW);
-        glCheck!();
+        // glCheck!();
 
 
 
@@ -172,7 +172,7 @@ fn main() {
         gl::EnableVertexAttribArray(0);
         gl::VertexAttribPointer(0, 2 as i32, gl::FLOAT, gl::FALSE, size, ptr::null());
         gl::VertexAttribDivisor(0, 1);
-        glCheck!();
+        // glCheck!();
     
         let mut stride = 2;
 
@@ -180,25 +180,25 @@ fn main() {
         gl::EnableVertexAttribArray(1);
         gl::VertexAttribPointer(1, 4 as i32, gl::FLOAT, gl::FALSE, size, (stride * float_size) as *const _);
         gl::VertexAttribDivisor(1, 1);
-        glCheck!();
+        // glCheck!();
 
         stride += 4;
 
         gl::EnableVertexAttribArray(2);
         gl::VertexAttribPointer(2, 4 as i32, gl::FLOAT, gl::FALSE, size, (stride * float_size) as *const _);
         gl::VertexAttribDivisor(2, 1);
-        glCheck!();
+        // glCheck!();
 
         stride += 4;
 
         gl::EnableVertexAttribArray(3);
         gl::VertexAttribPointer(3, 3 as i32, gl::FLOAT, gl::FALSE, size, (stride * float_size) as *const _);
         gl::VertexAttribDivisor(3, 1);
-        glCheck!();
+        // glCheck!();
 
 
         gl::BindVertexArray(0);
-        glCheck!();
+        // glCheck!();
 
         let size = mem::size_of::<RectInstanceData>() as i32;
 
@@ -209,21 +209,21 @@ fn main() {
             (mem::size_of::<u32>() * INDEX_DATA.len()) as isize,
             RECT_INDEX_DATA.as_ptr() as *const _,
             gl::STATIC_DRAW);
-        glCheck!();
+        // glCheck!();
 
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo2);
-        glCheck!();
+        // glCheck!();
         gl::BufferData(
             gl::ARRAY_BUFFER,
             (mem::size_of::<RectInstanceData>() * BATCH_SIZE) as isize,
             ptr::null(),
             gl::STREAM_DRAW);
-        glCheck!();
+        // glCheck!();
 
         gl::EnableVertexAttribArray(0);
         gl::VertexAttribPointer(0, 2 as i32, gl::FLOAT, gl::FALSE, size, ptr::null());
         gl::VertexAttribDivisor(0, 1);
-        glCheck!();
+        // glCheck!();
     
         let mut stride = 2;
 
@@ -251,15 +251,15 @@ fn main() {
     shader.activate();
 
     shader.set_perspective(ortho);
-    glCheck!();
+    // glCheck!();
 
     shader.set_font_atlas(&atlas);
-    glCheck!();
+    // glCheck!();
     shader.set_cell_size(cell_size);
-    glCheck!();
+    // glCheck!();
 
     shader.deactivate();
-    glCheck!();
+    // glCheck!();
 
     rect_shader.activate();
 
@@ -269,18 +269,18 @@ fn main() {
 
     rect_shader.deactivate();
 
-    glCheck!();
+    // glCheck!();
 
     unsafe {
         gl::Viewport(0, 0, w as i32, h as i32);
         gl::Enable(gl::BLEND);
         gl::BlendFunc(gl::SRC1_COLOR, gl::ONE_MINUS_SRC1_COLOR);
         gl::Enable(gl::MULTISAMPLE);
-        glCheck!();
+        // glCheck!();
         gl::DepthMask(gl::FALSE);
-        glCheck!();
+        // glCheck!();
         gl::ClearColor(1.0, 1.0, 1.0, 1.0);
-        glCheck!();
+        // glCheck!();
     }
     
     let msg = "Hello, World"; 
@@ -368,14 +368,12 @@ fn main() {
 
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            glCheck!();
         }
         
         atlas.bind();
 
         unsafe {
             
-            glCheck!();
 //            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
 //            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
     
@@ -478,7 +476,7 @@ fn main() {
                 gl::BindVertexArray(0);
                 rect_shader.deactivate();
 
-                glCheck!();
+                // glCheck!();
             }
 
 
@@ -491,44 +489,7 @@ fn main() {
 
         window.swap_buffers();
     }
-
-}
-
-// #[repr(C)]
-#[derive(Debug, Clone, Copy)]
-struct InstanceData {
-    // cell
-    x: f32,
-    y: f32,
-    
-    // glyth info
-    width: f32,
-    height: f32,
-    offset_x: f32,
-    offset_y: f32,
-
-    // texture coordinates
-    uv_x: f32,
-    uv_y: f32,
-    uv_dx: f32,
-    uv_dy: f32,
-    // Mayby this could be used if I move to a texture array of atlases?.
-    // texture_id: f32,
-
-    // text metrics offsets for the character
-
-    r: f32,
-    g: f32,
-    b: f32,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct RectInstanceData {
-    x: f32,
-    y: f32,
-    r: f32,
-    g: f32,
-    b: f32,
+    */
 }
 
 /*

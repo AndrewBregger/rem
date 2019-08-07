@@ -2,9 +2,9 @@
 
 // inflused by: Jwilm's Alacritty font shader.
 layout (location = 0) in vec2 cell;
-layout (location = 1) in vec4 glyph;
-layout (location = 2) in vec4 uv;
-layout (location = 3) in vec3 gcolor;
+layout (location = 1) in vec3 gcolor;
+layout (location = 2) in vec4 glyph;
+layout (location = 3) in vec4 uv;
 
 uniform mat4 projection;
 uniform vec2 cell_size;

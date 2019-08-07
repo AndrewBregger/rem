@@ -7,44 +7,82 @@ use std::ptr;
 use std::collections::HashMap;
 use std::ffi::CString;
 
+use crate::pane::Pane;
 use crate::config;
-use super::font::{self, RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};;
+use super::font::{self, RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};
 
-use super::window;
-use super::window::Size;
 use super::shader::{TextShader, RectShader};
+use super::{Error, Result, Glyph, GlyphCache};
+use super::caches::Atlas;
 
-use super::Result;
 
-static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
 
-macro_rules! glCheck {
-    () => {{
-        if cfg!(debug_assertions) {
-            let err = unsafe { gl::GetError() };
-            // println!("Error {:?}", err);
-            if err != gl::NO_ERROR {
-                let err_str = match err {
-                    gl::INVALID_ENUM => "GL_INVALID_ENUM",
-                    gl::INVALID_VALUE => "GL_INVALID_VALUE",
-                    gl::INVALID_OPERATION => "GL_INVALID_OPERATION",
-                    gl::INVALID_FRAMEBUFFER_OPERATION => "GL_INVALID_FRAMEBUFFER_OPERATION",
-                    gl::OUT_OF_MEMORY => "GL_OUT_OF_MEMORY",
-                    gl::STACK_UNDERFLOW => "GL_STACK_UNDERFLOW",
-                    gl::STACK_OVERFLOW => "GL_STACK_OVERFLOW",
-                    _ => "unknown error",
-                };
-                println!("{}:{} error {}", file!(), line!(), err_str);
-            }
+static BATCH_SIZE: usize = 1024;
+
+#[derive(Debug, Clone, Copy)]
+struct InstanceData {
+    // cell
+    x: f32,
+    y: f32,
+    
+    // glyth info
+    width: f32,
+    height: f32,
+    offset_x: f32,
+    offset_y: f32,
+
+    // texture coordinates
+    uv_x: f32,
+    uv_y: f32,
+    uv_dx: f32,
+    uv_dy: f32,
+    // Mayby this could be used if I move to a texture array of atlases?.
+    // texture_id: f32,
+
+    // text metrics offsets for the character
+
+    r: f32,
+    g: f32,
+    b: f32,
+
+    texture_id: i32
+}
+
+struct Batch {
+    texture_id: u32,
+    instances: Vec<InstanceData>
+}
+
+impl Batch {
+    fn new() -> Self {
+        Self {
+            texture_id: 0,
+            instances: Vec::with_capacity(BATCH_SIZE)
         }
-    }};
+    }
+
+    fn is_empty(&self) -> bool {
+        self.instances.is_empty()
+    }
+
+    fn push(&mut self, data: InstanceData) -> bool {
+
+        if self.is_empty() {
+            self.texture_id = data.texture_id as u32
+        }
+
+        if self.instances.len() < BATCH_SIZE {
+            self.instances.push(data)
+        }
+
+        self.instances.len() == BATCH_SIZE
+    }
+
+    fn clear(&mut self) {
+        self.instances.clear()
+    }
+
 }
-
-
-pub trait GlyphLoader {
-    fn load_glyph(&mut self, glyph: &RasterizedGlyph) -> Result<Glyph>;
-}
-
 
 pub struct Renderer {
     // vertex buffer object
@@ -54,362 +92,140 @@ pub struct Renderer {
     // vertex attribute object
     vao: u32,
     // the shader for rendering text
-    shader: TextShader,
+    text_shader: TextShader,
+    // the shader for rendering text
+    rect_shader: RectShader,
     // all of the vertex atlases
     atlases: Vec<Atlas>,
+    // batch for this renderer
+    batch: Batch
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Glyph {
-    /// Character this glyph represents
-    pub ch: u32,
-    /// The id of the atlas this glyph is located
-    pub atlas: u32,
-    /// Width of the glyph in pixels
-    pub width: f32,
-    /// Height of the glyph in pixels
-    pub height: f32,
-    /// The x uv coordinate of the glyph in the atlas
-    pub uv_x: f32,
-    /// The y uv coordinate of the glyph in the atlas
-    pub uv_y: f32,
-    /// The width in texture coordinate space (delta x)
-    pub uv_dx: f32,
-    /// The height in texture coordinate space (delta y)
-    pub uv_dy: f32,
-    /// top of glyph
-    pub top: f32,
-    /// left of glyph
-    pub left: f32,
-    /// advance x
-    pub advance_x: f32,
-    /// advance y
-    pub advance_y: f32,
-    /// x bearing of the character
-    pub bearing_x: f32,
-    /// y bearing of the character
-    pub bearing_y: f32,
-}
+impl Renderer {
+    pub fn new() -> Result<Self> {
+        let mut vao = 0;
 
-/////////////////////////////////////////////////////////
-///
-///
-///
-///             current x
-///             v
-/// +---------------------------------------------------+
-/// |                                                   |
-/// |                                                   |
-/// |                                                   |
-/// |                                                   |
-/// |                                                   |
-/// |---------------------------------------------------|
-/// |           |                                       |
-/// |     f     |                                       |
-/// |           |                                       |
-/// |---------------------------------------------------| < Base Line
-/// |           |       |       |         |        |    |
-/// |     a     |   b   |   c   |    d    |   e    |    | This line is full
-/// |           |       |       |         |        |    | the next character
-/// +---------------------------------------------------+ would not fit
-///
-///
-///
-/////////////////////////////////////////////////////////
-#[derive(Debug, Clone)]
-pub struct Atlas {
-    // the current x within the atlas
-    x: f32,
-    // the current baseline of the atlas
-    base_line: f32,
-    // the size of the underline texture
-    size: Size,
-    // the height of the larget subtexture in the current row.
-    max_height: f32,
-    // the gl texture handle
-    pub(crate) texture_id: u32,
-    // the altas id
-    id: u32,
-}
+        let mut bufs = [0, 0];
+        // bufs[0] is vbo
+        // bufs[1] is ibo
 
-impl Atlas {
-    // the gl texture is not allocated until a subtexture is added.
-    pub fn new(size: Size) -> Result<Self> {
-        let mut atlas = Self {
-            x: 0.0,
-            base_line: 0.0,
-            size,
-            max_height: 0.0,
-            texture_id: 0,
-            id: 0, // I dont know how to set this.
-        };
+        let index_data = [0, 1, 2, 0, 2, 3];
 
-        atlas.allocate_texture()?;
-
-        Ok(atlas)
-    }
-
-    pub fn bind(&self) {
         unsafe {
-            gl::ActiveTexture(gl::TEXTURE0 + self.texture_id);
-            gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
-        }
-    }
+            gl::GenVertexArrays(1, &mut vao);
+            // generate both with a single call
+            gl::GenBuffers(2, bufs.as_mut_ptr());
 
-    // allocates the gl texture
-    fn allocate_texture(&mut self) -> Result<()> {
-        unsafe {
-            gl::GenTextures(1, &mut self.texture_id);
+            gl::BindVertexArray(vao);
 
-            if self.texture_id == 0 {
-                return Err(Error::AtlasError(
-                    format!("Failed to allocate texture of size {:?}", self.size).to_owned(),
-                ));
-            }
+            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, bufs[1]);
+            gl::BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                (mem::size_of::<u32>() * index_data.len()) as isize,
+                index_data.as_ptr() as *const _,
+                gl::STATIC_DRAW);
+
+            gl::BindBuffer(gl::ARRAY_BUFFER, bufs[0]);
+
+            let size = mem::size_of::<InstanceData>() as usize;
+
+            gl::BufferData(gl::ARRAY_BUFFER,
+                (size * BATCH_SIZE) as isize,
+                ptr::null(),
+                gl::STATIC_DRAW
+                );
+
+            let float_size = mem::size_of::<f32>();
+
+            gl::EnableVertexAttribArray(0);
+            gl::VertexAttribPointer(0, 2 as i32, gl::FLOAT, gl::FALSE, size as i32, ptr::null());
+            gl::VertexAttribDivisor(0, 1);
+            // glCheck!();
+            let mut stride = 2;
+
+            gl::EnableVertexAttribArray(1);
+            gl::VertexAttribPointer(1, 3 as i32, gl::FLOAT, gl::FALSE, size as i32, (stride * float_size) as *const _);
+            gl::VertexAttribDivisor(1, 1);
         
-            gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
-            gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
+            stride += 3;
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_WRAP_S,
-                gl::CLAMP_TO_BORDER as GLint,
-            );
+            // color attribute
+            gl::EnableVertexAttribArray(2);
+            gl::VertexAttribPointer(2, 4 as i32, gl::FLOAT, gl::FALSE, size as i32, (stride * float_size) as *const _);
+            gl::VertexAttribDivisor(2, 1);
+            // glCheck!();
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_WRAP_T,
-                gl::CLAMP_TO_BORDER as GLint,
-            );
+            stride += 4;
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MIN_FILTER,
-                gl::LINEAR as GLint
-            );
+            gl::EnableVertexAttribArray(3);
+            gl::VertexAttribPointer(3, 4 as i32, gl::FLOAT, gl::FALSE, size as i32, (stride * float_size) as *const _);
+            gl::VertexAttribDivisor(3, 1);
+            // glCheck!();
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MAG_FILTER,
-                gl::LINEAR as GLint
-            );
+            // glCheck!();
 
-            // allocate an empty texture
-            gl::TexImage2D(
-                gl::TEXTURE_2D,
-                0,
-                gl::RGB as i32,
-                self.size.width() as i32,
-                self.size.height() as i32,
-                0,
-                gl::RGB,
-                gl::UNSIGNED_BYTE,
-                std::ptr::null(),
-            );
-
-            glCheck!();
-
-            gl::BindTexture(gl::TEXTURE_2D, 0);
-
-        }
-        Ok(())
-    }
-
-    pub fn insert(&mut self, glyph: &RasterizedGlyph) -> Result<Glyph> {
-        // move to next row if needed
-        //println!("{:?}", self.size);
-        //println!("\tW: {}, H: {}", glyph.width, glyph.height);
-        //println!("\tX: {}, y: {}", self.x, self.base_line);
-        if !self.has_space(glyph) {
-            self.advance()?;
-        }
-    
-        // check if the glyph will fit vertically fix in the altas.
-        if self.base_line + glyph.height > self.size.height() as f32 {
-            return Err(Error::AtlasError(format!("Not enough room for glyph of size {} {} in altas", glyph.width, glyph.height).to_owned()));
-        }
-        
-        // the glyph can be added.
-
-        // if the new glyph is vertically largest glyph in the row then set
-        // it to the new heightest.
-        if glyph.height > self.max_height {
-            self.max_height = glyph.height;
-        }
-    
-        unsafe {
-            gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
-            glCheck!();
-
-            //println!("{:?}", glyph);
-            //println!("{:?}", self.size);
-
-            gl::TexSubImage2D(gl::TEXTURE_2D,  
-                              0,
-                              self.x as i32,
-                              self.base_line as i32,
-                              glyph.width as i32,
-                              glyph.height as i32,
-                              gl::RGB,
-                              gl::UNSIGNED_BYTE,
-                              mem::transmute(&glyph.bitmap[0]));
-            glCheck!();
-
-            gl::BindTexture(gl::TEXTURE_2D, 0);
-            glCheck!();
+            gl::BindVertexArray(0);
         }
 
-        let old_x = self.x;
-
-        // move the x cursor forward.
-        self.x += glyph.width;
-
-    
-        // build the glyph
-        Ok(Glyph {
-            ch: glyph.glyph,
-            atlas: self.id,
-            width: glyph.width,
-            height: glyph.height,
-            uv_x: old_x / self.size.width() as f32,
-            uv_y: self.base_line / self.size.height() as f32,
-            uv_dx: glyph.width / self.size.width() as f32,
-            uv_dy: glyph.height / self.size.height() as f32,
-            top: glyph.top,
-            left: glyph.left,
-            advance_x: glyph.advance_x,
-            advance_y: glyph.advance_y,
-            bearing_x: glyph.bearing_x,
-            bearing_y: glyph.bearing_y, 
-        })
-    }
-
-    // checks whether there is room on the current row for the new glyph
-    fn has_space(&self, glyph: &RasterizedGlyph) -> bool {
-        self.x + glyph.width < self.size.width() as f32
-    }
-    
-    // advance to the next row of the atlas
-    // Errors if there is no more room
-    fn advance(&mut self) -> Result<()> {
-        println!("Advance!");
-        if self.base_line + self.max_height < self.size.height() as f32 {
-            self.x = 0.0;
-            self.base_line += self.max_height;
-            self.max_height = 0f32;
-            Ok(())
-        }
-        else {
-            Err(Error::AtlasError("last line of atlas".to_owned()))
-        }
-    }
-}
-
-// should this be a Cache for all glyphs or just the a cache
-// for a given font face?
-// if all fonts:
-//      then there needs to be a method of looking up the glyph
-//      of a specific character, font, and size.
-//      It is reasonable to assume that multiple fonts will be loaded
-//      to render different text on the screen (tabs, file info, gutters, and messages).
-#[derive(Debug, Clone)]
-pub struct GlyphCache<T> {
-    glyphs: HashMap<GlyphKey, Glyph>,
-    rasterizer: T,
-    font: FontKey,
-    font_size: FontSize,
-    metrics: font::Metrics,
-    proto: CacheMissProto,
-}
-
-// What happens when a character and size is requested that doesn't exist.
-#[derive(Debug, Clone)]
-pub enum CacheMissProto {
-    ErrorOnMiss,
-//    RasterizeChar,
-//    Custom(Fn(GlyphKey) -> Glyph)
-}
-//
-//impl CacheMissProto {
-//    fn custom<P>(f: P) -> Self
-//        where P: Fn(GlyphKey) -> Glyph {
-//        CacheMissProto::Custom(f)
-//    }
-//}
-
-
-impl<T> GlyphCache<T>
-    where T: Rasterizer {
-    pub fn new(mut rasterizer: T, font: config::Font, dpi: f32, proto: CacheMissProto) -> Result<Self> {
-        let font_size = font.size;
-        let font = rasterizer.get_font(font.font).map_err(|e| Error::FontError(e))?;
-        let metrics = rasterizer.get_metrics(font, font_size).map_err(|e| Error::FontError(e))?;
+        let text_shader = TextShader::new()?;
+        let rect_shader = RectShader::new()?;
 
         Ok(Self {
-            glyphs: HashMap::new(),
-            rasterizer,
-            font,
-            font_size,
-            metrics,
-            proto
+           vao,
+           vbo: bufs[0],
+           ibo: bufs[1],
+           text_shader,
+           rect_shader,
+           atlases: Vec::new(),
+           batch: Batch::new()
         })
     }
 
-    pub fn metrics(&self) -> &font::Metrics {
-        &self.metrics
+    pub fn text_shader(&self) -> &TextShader {
+        &self.text_shader
     }
 
-    pub fn get(&self, ch: u32) -> Result<&Glyph> {
-        let glyph = GlyphKey {
-            ch,
-            font: self.font,
-            size: self.font_size,
-        };
-
-        self.request(&glyph)
+    pub fn rect_shader(&self) -> &RectShader {
+        &self.rect_shader
     }
 
-    pub fn request(&self, glyph: &GlyphKey) -> Result<&Glyph> {
-        match self.glyphs.get(glyph) {
-            Some(g) => Ok(g),
-            None => Err(Error::CacheMissChar(glyph.clone()))
+    pub fn add_atlas(&mut self, atlas: Atlas) -> u32{
+        self.atlases.push(atlas);
+        (self.atlases.len() - 1) as u32
+    }
+
+
+    pub fn draw(&self) -> Result<()> {
+
+        if !self.batch.is_empty() {
+            self.text_shader.activate();
+
+
+            let atlas = &self.atlases[self.batch.texture_id as usize];
+
+            self.text_shader.set_font_atlas(atlas);
+            atlas.bind();
+
+            unsafe {
+                gl::BindVertexArray(self.vao);
+
+                gl::BufferData(
+                    gl::ARRAY_BUFFER,
+                    (mem::size_of::<InstanceData>() * BATCH_SIZE) as isize,
+                    self.batch.instances.as_ptr() as *const _,
+                    gl::STATIC_DRAW
+                );
+
+                gl::Enable(gl::BLEND);
+                gl::DrawElementsInstanced(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null(), self.batch.instances.len() as i32);
+
+                gl::BindVertexArray(0);
+            }
+
+            atlas.unbind();
+            self.text_shader.deactivate();
         }
-    }
-
-    pub fn load_glyph<F>(&mut self, glyph: GlyphKey, loader: &mut F)
-        where F: GlyphLoader {
-
-        let rasterizer = &mut self.rasterizer;
-    
-        self.glyphs.entry(glyph.clone()).or_insert_with(|| {
-            let size = glyph.size.clone();
-            let rglyph = rasterizer.load_glyph(glyph, size).unwrap();
-
-            loader.load_glyph(&rglyph).unwrap()
-        });
-    }
-
-
-    pub fn load_glyphs<F>(&mut self, loader: &mut F) 
-        where F: GlyphLoader {
-       for c in 33..=126 {
-            let g = font::GlyphKey {
-                ch: c as u32,
-                font: self.font,
-                size: self.font_size
-            };
-            self.load_glyph(g, loader);
-       }
-
-       for c in 161..=256 {
-            let g = font::GlyphKey {
-                ch: c as u32,
-                font: self.font,
-                size: self.font_size,
-            };
-
-            self.load_glyph(g, loader);
-       }
+        
+        Ok(())
     }
 }
-

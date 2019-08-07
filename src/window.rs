@@ -117,7 +117,7 @@ impl Window {
         event_loop: &EventsLoop,
         size: Size,
     ) -> Result<WindowedContext<PossiblyCurrent>> {
-        use super::glutin::{WindowBuilder, ContextBuilder};
+        use glutin::{WindowBuilder, ContextBuilder};
 
         let window = WindowBuilder::new()
             .with_title("REM Editor")

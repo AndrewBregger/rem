@@ -55,14 +55,14 @@ impl Document {
    pub fn from_path(path: &str) -> Result<Self> {
       let path = path::Path::new(path);
 
-      let ERROR_MAP = |e| { Error::FileError(e) };
+      let error_map = |e| { Error::FileError(e) };
 
       let content = if path.exists() {
          Rope::from_reader(
             BufReader::new(
-                  fs::File::open(path).map_err(ERROR_MAP)?
+                  fs::File::open(path).map_err(error_map)?
                )
-            ).map_err(ERROR_MAP)?
+            ).map_err(error_map)?
       }
       else {
          Rope::new()
