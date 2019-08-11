@@ -14,7 +14,11 @@ use crate::window::Size;
 use crate::config;
 
 pub trait GlyphLoader {
-    fn load_glyph(&mut self, glyph: &RasterizedGlyph) -> Result<Glyph>;
+    /// load a glyph
+    fn load_glyph(&mut self, glyph: &RasterizedGlyph) -> Result<super::Glyph>;
+
+    /// clear
+    fn clear(&mut self);
 }
 
 /////////////////////////////////////////////////////////
@@ -49,7 +53,7 @@ pub struct Atlas {
     // the current baseline of the atlas
     base_line: f32,
     // the size of the underline texture
-    size: Size,
+    pub(crate) size: Size,
     // the height of the larget subtexture in the current row.
     max_height: f32,
     // the gl texture handle
@@ -158,7 +162,7 @@ impl Atlas {
     
         // check if the glyph will fit vertically fix in the altas.
         if self.base_line + glyph.height > self.size.height() as f32 {
-            return Err(Error::AtlasError(format!("Not enough room for glyph of size {} {} in altas", glyph.width, glyph.height).to_owned()));
+            return Err(Error::AtlasFull);
         }
         
         // the glyph can be added.
@@ -199,7 +203,7 @@ impl Atlas {
         // build the glyph
         Ok(Glyph {
             ch: glyph.glyph,
-            atlas: self.id,
+            atlas: self.texture_id,
             width: glyph.width,
             height: glyph.height,
             uv_x: old_x / self.size.width() as f32,
@@ -232,6 +236,12 @@ impl Atlas {
         }
         else {
             Err(Error::AtlasError("last line of atlas".to_owned()))
+        }
+    }
+
+    fn clear(&mut self) {
+        unsafe {
+            gl::DeleteTextures(1, &self.texture_id);
         }
     }
 }
@@ -341,5 +351,61 @@ impl<T> GlyphCache<T>
 
             self.load_glyph(g, loader);
        }
+    }
+
+    pub fn font(&self) -> FontKey {
+        self.font
+    }
+
+    pub fn font_size(&self) -> FontSize  {
+        self.font_size
+    }
+}
+
+pub struct LoadApi<'a> {
+    atlas: &'a mut Vec<Atlas>,
+    last: usize
+}
+
+impl<'a> LoadApi<'a> {
+    pub fn new(atlas: &'a mut Vec<Atlas>) -> Self {
+        Self {
+            atlas,
+            last: 0,
+        }
+    }
+}
+
+fn load_glyph(atlas: &mut Vec<Atlas>, last: &mut usize, glyph: &font::RasterizedGlyph) -> Result<super::Glyph> {
+    match atlas[*last].insert(glyph) {
+        Ok(glyph) => Ok(glyph),
+        Err(Error::AtlasFull) => {
+            let size = atlas[*last].size;
+            *last += 1;
+            if *last == atlas.len() {
+                let t = Atlas::new(size)?;
+                atlas.push(t);
+                load_glyph(atlas, last, glyph)
+            }
+            else {
+                panic!("LoadApi failed to manage last atlas");
+            }
+        },
+        Err(e) => Err(e)
+    }
+}
+
+impl<'a> GlyphLoader for LoadApi<'a> {
+    fn load_glyph(&mut self, glyph: &font::RasterizedGlyph) -> Result<super::Glyph> {
+        load_glyph(self.atlas, &mut self.last, glyph)
+    }
+
+    fn clear(&mut self) {
+        for atlas in self.atlas.iter_mut() {
+            atlas.clear();
+        }
+
+        self.atlas.clear();
+        self.last = 0;
     }
 }

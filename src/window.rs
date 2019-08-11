@@ -138,7 +138,7 @@ impl Window {
             .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 0)))
             .with_double_buffer(Some(true))
             .with_srgb(true)
-            .with_vsync(true)
+            // .with_vsync(true)
             // }
             .build_windowed(window, event_loop)
             .map_err(|e| Error::NoWindow(e))?;
@@ -175,7 +175,7 @@ impl Window {
             .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (4, 0)))
             .with_double_buffer(Some(true))
             .with_srgb(true)
-            .with_vsync(true)
+            // .with_vsync(true)
             // }
             .build_windowed(windowbuilder, event_loop)
             .map_err(|e| Error::NoWindow(e))?;

@@ -17,6 +17,10 @@ Pane
 Open Questions:
 Where should the text color be stored?
 
+Vsync delays the event loop process from closing in all platforms.
+A solution to this is to render in a different thread than the event loop.
+This is intented in the future.
+
 Done:
 Basic TTF rasterizing
 Basic floating text rendering

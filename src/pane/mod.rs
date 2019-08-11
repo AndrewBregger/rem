@@ -3,12 +3,26 @@ use super::font::{GlyphKey};
 use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
 use super::editor_core;
 use std::cmp::Eq;
+use crate::font::{FontKey, FontSize};
+use crate::config;
 
 #[derive(Debug, Copy, Clone)]
-pub struct Size(i32, i32);
+pub struct Size {
+    pub width: u32,
+    pub height: u32,
+}
 
-#[derive(Debug, Copy, Clone)]
-pub struct Loc(f32, f32);
+impl Size {
+    pub fn new(width: u32, height: u32) -> Self {
+        Self {
+            width,
+            height
+        }
+    }
+}
+
+// #[derive(Debug, Copy, Clone)]
+pub type Loc = glm::Vec2;
 
 // type Result<T> = ::std::result::Result<T, Error>;
 
@@ -45,13 +59,17 @@ pub struct Pane {
     dirty: bool,
     /// Identification of Pane
     id: PaneID,
+    /// font of the pane
+    font: FontKey,
+    /// font size of this pane
+    font_size: FontSize,
 }
 
 #[derive(Debug, Clone)]
 pub struct Line;
 
 impl Pane {
-    pub fn new(size: Size, loc: Loc) -> Self {
+    pub fn new(size: Size, loc: Loc, font: FontKey, font_size: FontSize) -> Self {
         Self {
             size,
             loc,
@@ -59,7 +77,21 @@ impl Pane {
             active: true,
             first_line: 0 as usize,
             dirty: true,
-            id: PaneID::next()
+            id: PaneID::next(),
+            font,
+            font_size,
         }
+    }
+
+    pub fn set_font(&mut self, font: FontKey) {
+        self.font = font
+    }
+
+    pub fn increase_font_size(&mut self, inc: f32) {
+        self.font_size.pixel_size += inc;
+    }
+
+    pub fn decrease_font_size(&mut self, inc: f32) {
+        self.font_size.pixel_size -= inc;
     }
 }

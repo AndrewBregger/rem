@@ -33,14 +33,9 @@ pub fn compile_shader(src: &str, ty: GLenum) -> GLuint {
         else {
             println!("GetShaderiv is not loaded");
         }
-        println!("{}", status);
         if status != (gl::TRUE as GLint) {
             let mut len = 0;
             gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
-            //if len == 0 {
-            //    println!("Status {} but len is 0", status);
-            //    return shader;
-            //}
 
             let mut buf = Vec::with_capacity(len as usize);
             buf.set_len((len as usize) - 1);
@@ -116,6 +111,8 @@ pub struct TextShader {
     atlas_loc: i32,
     // size of each cell
     cell_loc: i32,
+    // the pass type.
+    pass_loc: i32,
 }
 
 pub struct RectShader {
@@ -140,12 +137,14 @@ impl TextShader {
         let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr()) };
         let atlas_loc = unsafe { gl::GetUniformLocation(program, CString::new("atlas").unwrap().as_ptr()) };
         let cell_loc = unsafe { gl::GetUniformLocation(program, CString::new("cell_size").unwrap().as_ptr()) };
+        let pass_loc = unsafe { gl::GetUniformLocation(program, CString::new("bg_pass").unwrap().as_ptr()) };
 
         Ok(Self {
             program,
             per_loc,
             atlas_loc,
             cell_loc,
+            pass_loc,
         })
     }
 
@@ -159,6 +158,10 @@ impl TextShader {
 
     pub fn set_cell_size(&self, size: (f32, f32)) {
         unsafe { gl::Uniform2f(self.cell_loc, size.0, size.1) };
+    }
+
+    pub fn set_background_pass(&self, pass: i32) {
+        unsafe { gl::Uniform1i(self.pass_loc, pass); }
     }
 
     pub fn activate(&self) {
@@ -199,11 +202,11 @@ impl RectShader {
         unsafe { gl::Uniform2f(self.cell_loc, size.0, size.1) };
     }
 
-    pub fn activate(&mut self) {
+    pub fn activate(&self) {
         unsafe { gl::UseProgram(self.program) };
     }
 
-    pub fn deactivate(&mut self) {
+    pub fn deactivate(&self) {
         unsafe { gl::UseProgram(0) };
     }
 }
