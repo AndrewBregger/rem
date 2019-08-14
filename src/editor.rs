@@ -25,9 +25,6 @@ pub enum Error {
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
-pub struct Settings {
-}
-
 
 /// Main structure of the application
 pub struct App {
@@ -162,10 +159,15 @@ impl App {
         (pane::Size::new(cells_x.ceil() as u32, cells_y.ceil() as u32), pane::Loc::new(0.0, 0.0))
     }
     
-    /// temporary function to load a file into the main pane until it is actually implemented.
+    /// TEMPORARY function to load a file into the main pane until it is actually implemented.
     pub fn test_doc(&mut self) {
         let doc = self.engine.open_document("src/main.rs").unwrap();
         self.docs.insert(self.main_pane.id, doc);
+    }
+
+    /// TEMPORARY making sure the caching works when rendering.
+    pub fn pane_rendered(&mut self) {
+        self.main_pane.dirty = false;
     }
 
     // does this need to mut the state?
@@ -182,8 +184,10 @@ impl App {
         pane.ready_render(&self.renderer).map_err(|e| Error::RenderError(e))?;
 
         // binds the framebuffer for rendering
-        pane.bind_frame();
-        self.renderer.clear_frame();
+        pane.bind_frame_as_write();
+
+        // Since the entire frame is to be drawn to, the frame doesnt need to be cleared?.
+        self.renderer.clear_frame(None);
 
         let id = pane.id;
 
@@ -260,7 +264,6 @@ impl App {
         }
         render.draw_batch(&batch);
 
-
         Ok(())
     }
 
@@ -295,10 +298,11 @@ impl App {
     }
 
     pub fn render_window(&self) {
-        self.renderer.clear_frame();
-
         let pane = &self.main_pane; 
         let (w, h) = self.window.dimensions().into(); 
+
+        unsafe { gl::BindFramebuffer(gl::FRAMEBUFFER, 0); }
+        self.renderer.clear_frame(None);
 
         self.renderer.set_view_port(w, h);
         self.renderer.draw_rendered_pane(&self.window, pane);

@@ -94,7 +94,7 @@ pub struct Pane {
     /// offset of the view within the pane.
     view_offset: usize,
     /// flag to determine if a redraw is needed
-    dirty: bool,
+    pub dirty: bool,
     /// Identification of Pane
     pub id: PaneID,
     /// font of the pane
@@ -104,7 +104,7 @@ pub struct Pane {
     /// The size of each cell in the pane. This is tied to the font size.
     cell_size: CellSize,
     /// the cached rendered pane
-    frame: render::framebuffer::FrameBuffer,
+    pub frame: render::framebuffer::FrameBuffer,
 }
 
 #[derive(Debug, Clone)]
@@ -204,6 +204,10 @@ impl Pane {
 
     pub fn bind_frame_as_read(&self) {
         self.frame.bind_read();
+    }
+
+    pub fn bind_frame_as_write(&self) {
+        self.frame.bind_write();
     }
 
     pub fn unbind_frame(&self) {

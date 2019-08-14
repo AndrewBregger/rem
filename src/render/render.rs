@@ -13,10 +13,10 @@ use crate::size;
 use crate::window::Window;
 
 use super::font::{self, RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};
-
 use super::shader::{TextShader, RectShader};
 use super::{Error, Result, Glyph, GlyphCache};
 use super::caches::Atlas;
+use super::framebuffer::FrameBuffer;
 
 #[macro_export]
 macro_rules! glCheck {
@@ -270,6 +270,9 @@ impl Renderer {
                 );
                 glCheck!();
 
+                //let mut fbo = 0;
+                //gl::GetIntegerv(gl::DRAW_FRAMEBUFFER_BINDING, &mut fbo);
+
                 self.text_shader.set_background_pass(0);
                 gl::Enable(gl::BLEND);
                 gl::DrawElementsInstanced(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null(), batch.instances.len() as i32);
@@ -305,27 +308,42 @@ impl Renderer {
 
         Ok(cache)
     }
-
-    pub fn clear_frame(&self) {
+    
+    /// maybe give this function a framebuffer object that is should clear.
+    /// This is to explicity giving the function a specific buffer to clear
+    /// not just the currently one bound.
+    pub fn clear_frame(&self, frame: Option<&FrameBuffer>) {
+        let mut saved_fbo = 0;
         unsafe {
-            // make sure the windows frame buffer is actually being cleared.
-            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+            // this is so the state can be restored after this call.
+            gl::GetIntegerv(gl::DRAW_FRAMEBUFFER_BINDING, &mut saved_fbo);
+        }
+
+        match frame {
+            Some(frame) => {
+                frame.bind_write();
+            }
+            _ => { /* clear currently active draw buffer*/ }
+        }
+        unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
+            gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, saved_fbo as u32);
         }
     }
 
     /// assumes the frame buffer has been rendered to and ready to be drawn.
     pub fn draw_rendered_pane(&self, window: &Window, pane: &Pane) {
-        pane.bind_frame_as_read();
         let (w, h): (f32, f32) = window.dimensions().into();
         // println!("{} {}", w, h);
         let pane_size = pane.pane_size_in_pixels();
         // println!("{:?}", pane_size);
         let pane_loc = pane.location();
 
+        pane.bind_frame_as_read();
         unsafe {
             // bind the window as the target draw.
             gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
+
             gl::BlitFramebuffer(
                 pane_loc.x as i32,
                 pane_loc.y as i32,
@@ -338,7 +356,6 @@ impl Renderer {
                 gl::COLOR_BUFFER_BIT,
                 gl::LINEAR
             );
-
             // reset the state.
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }

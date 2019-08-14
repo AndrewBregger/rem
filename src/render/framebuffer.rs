@@ -15,7 +15,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 /// Abstraction of a frame buffer to be used when rendering a pane.
 #[derive(Debug, Clone)]
 pub struct FrameBuffer {
-    fbo: u32,
+    pub fbo: u32,
     render_buffer: u32,
     size: FrameSize,
 }
@@ -30,15 +30,26 @@ impl FrameBuffer {
 
             gl::GenRenderbuffers(1, &mut render_buffer);
             gl::BindRenderbuffer(gl::RENDERBUFFER, render_buffer);
-            gl::RenderbufferStorage(gl::RENDERBUFFER, gl::RGBA, size.x as i32, size.y as i32);
-            gl::BindRenderbuffer(gl::RENDERBUFFER, 0);
+            gl::RenderbufferStorage(gl::RENDERBUFFER, gl::RGBA8, size.x as i32, size.y as i32);
 
             gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, render_buffer);
 
             if gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
                 return Err(Error::Incomplete);
             }
+            else {
+                println!("Frame buffer is complete");
+            }
+
+
+            let attachments = [gl::COLOR_ATTACHMENT0];
+            gl::DrawBuffers(1, attachments.as_ptr());
+
+            gl::BindRenderbuffer(gl::RENDERBUFFER, 0);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
+
+        println!("FBO ID: {}", fbo);
 
         Ok(Self {
             fbo,

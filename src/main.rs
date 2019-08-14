@@ -110,6 +110,8 @@ fn main() -> Result<(), editor::Error>{
     while app.process_input() {
         app.render_panes()?;
 
+        app.pane_rendered(); 
+
         app.render_window();
 
         app.swap_buffers();
