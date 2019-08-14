@@ -1,5 +1,6 @@
 pub mod render;
 pub mod caches;
+pub mod framebuffer;
 
 #[macro_use] pub use render::*;
 pub use caches::*;

@@ -106,6 +106,11 @@ impl Document {
    pub fn as_str<'a>(&'a self) -> Cow<str> {
       self.content.clone().into()
    }
+   
+   pub fn line_slice(&self, start: usize, end: usize) -> Vec<ropey::RopeSlice> {
+      let first = self.content.lines().skip(start);
+      first.take(end).collect()
+   }
 }
 
 
@@ -141,6 +146,12 @@ impl Engine {
    }
 
 
+   pub fn get_document(&self, doc: DocID) -> Option<&Document> {
+      match self.document_map.get(&doc) {
+         Some(e) => Some(&self.docs[*e]),
+         _ => None
+      }
+   }
 
    /// Executes a given operation on document of pane.
    /// pane: The identifier to know which file is being operated on.

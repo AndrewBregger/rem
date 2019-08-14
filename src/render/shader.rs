@@ -7,6 +7,8 @@ use std::fs;
 use std::convert::AsRef;
 use nalgebra_glm as glm;
 
+use crate::pane::CellSize;
+
 use super::Atlas;
 use super::Result;
 
@@ -105,7 +107,7 @@ static RECT_FS_SOURCE: &'static str = "shaders/rect.fs.glsl";
 
 pub struct TextShader {
     program: u32,
-    // uniform location
+    // perspective location
     per_loc: i32,
     // uniform atlas
     atlas_loc: i32,
@@ -117,10 +119,22 @@ pub struct TextShader {
 
 pub struct RectShader {
     program: u32,
-    // uniform location
+    // perspective location
     per_loc: i32,
     // size of each cell
     cell_loc: i32,
+}
+
+/// Shader for drawing the rendered pane onto the window.
+/// This is only used if I move from render buffer frame buffer to
+/// one that uses a texture.
+#[allow(dead_code)]
+pub struct PaneShader {
+    program: u32,
+    // perspective location
+    per_loc: i32,
+    // texture
+    tex: i32,
 }
 
 impl TextShader {
@@ -153,11 +167,15 @@ impl TextShader {
     }
 
     pub fn set_font_atlas(&self, atlas: &Atlas) {
-        unsafe { gl::Uniform1i(self.atlas_loc, atlas.texture_id as i32) };
+        self.set_font_atlas_texture(atlas.texture_id as i32);
     }
 
-    pub fn set_cell_size(&self, size: (f32, f32)) {
-        unsafe { gl::Uniform2f(self.cell_loc, size.0, size.1) };
+    pub fn set_font_atlas_texture(&self, tex: i32) {
+        unsafe { gl::Uniform1i(self.atlas_loc, tex) };
+    }
+
+    pub fn set_cell_size(&self, size: CellSize) {
+        unsafe { gl::Uniform2f(self.cell_loc, size.width(), size.height()) };
     }
 
     pub fn set_background_pass(&self, pass: i32) {
@@ -198,8 +216,8 @@ impl RectShader {
         unsafe { gl::UniformMatrix4fv(self.per_loc, 1, gl::FALSE, per.as_ptr()) };
     }
 
-    pub fn set_cell_size(&self, size: (f32, f32)) {
-        unsafe { gl::Uniform2f(self.cell_loc, size.0, size.1) };
+    pub fn set_cell_size(&self, size: CellSize) {
+        unsafe { gl::Uniform2f(self.cell_loc, size.width(), size.height()) };
     }
 
     pub fn activate(&self) {

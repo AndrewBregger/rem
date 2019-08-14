@@ -9,6 +9,9 @@ use std::ffi::CString;
 
 use crate::pane::Pane;
 use crate::config;
+use crate::size;
+use crate::window::Window;
+
 use super::font::{self, RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};
 
 use super::shader::{TextShader, RectShader};
@@ -33,6 +36,7 @@ macro_rules! glCheck {
                     _ => "unknown error",
                 };
                 println!("{}:{} error {}", file!(), line!(), err_str);
+                panic!();
             }
         }
     }};
@@ -198,7 +202,7 @@ impl Renderer {
         let text_shader = TextShader::new()?;
         let rect_shader = RectShader::new()?;
 
-        let atlas_size = crate::window::Size::from(config.atlas.size, config.atlas.size);
+        let atlas_size = size::Size::new(config.atlas.size, config.atlas.size);
         let atlas = Atlas::new(atlas_size)?;
 
         Ok(Self {
@@ -224,18 +228,36 @@ impl Renderer {
         (self.atlases.len() - 1) as u32
     }
 
+    pub fn set_view_port(&self, width: f32, height: f32) {
+        self.set_view_port_at(width, height, 0.0 , 0.0);
+    }
+
+    pub fn set_view_port_at(&self, width: f32, height: f32, x: f32, y: f32) {
+        unsafe {
+            gl::Viewport(x as i32, y as i32, width as i32, height as i32);
+        }
+    }
 
     pub fn draw_batch(&self, batch: &Batch) -> Result<()> {
         if !batch.is_empty() {
-            let atlas = &self.atlases[batch.texture_id as usize];
-            atlas.bind();
 
+            glCheck!();
             self.text_shader.activate();
-            self.text_shader.set_font_atlas(atlas);
+            glCheck!();
+
+            self.text_shader.set_font_atlas_texture(batch.texture_id as i32);
+            glCheck!();
 
             unsafe {
+                gl::ActiveTexture(gl::TEXTURE0 + batch.texture_id);
+                glCheck!();
+                gl::BindTexture(gl::TEXTURE_2D, batch.texture_id);
+                glCheck!();
+
                 gl::BindVertexArray(self.vao);
+                glCheck!();
                 gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ibo);
+                glCheck!();
                 gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
 
                 glCheck!();
@@ -259,8 +281,9 @@ impl Renderer {
                 glCheck!();
 
                 gl::BindVertexArray(0);
+                gl::BindTexture(gl::TEXTURE_2D, 0);
             }
-            atlas.unbind();
+
             self.text_shader.deactivate();
         }
         
@@ -281,5 +304,43 @@ impl Renderer {
         cache.load_glyphs(&mut loader);
 
         Ok(cache)
+    }
+
+    pub fn clear_frame(&self) {
+        unsafe {
+            // make sure the windows frame buffer is actually being cleared.
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+    }
+
+    /// assumes the frame buffer has been rendered to and ready to be drawn.
+    pub fn draw_rendered_pane(&self, window: &Window, pane: &Pane) {
+        pane.bind_frame_as_read();
+        let (w, h): (f32, f32) = window.dimensions().into();
+        // println!("{} {}", w, h);
+        let pane_size = pane.pane_size_in_pixels();
+        // println!("{:?}", pane_size);
+        let pane_loc = pane.location();
+
+        unsafe {
+            // bind the window as the target draw.
+            gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
+            gl::BlitFramebuffer(
+                pane_loc.x as i32,
+                pane_loc.y as i32,
+                w as i32, 
+                h as i32,
+                0,
+                0,
+                pane_size.0 as i32,
+                pane_size.1 as i32,
+                gl::COLOR_BUFFER_BIT,
+                gl::LINEAR
+            );
+
+            // reset the state.
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+        }
     }
 }

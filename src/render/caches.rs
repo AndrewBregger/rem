@@ -9,8 +9,7 @@ use super::Error;
 use super::font::{self, RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};
 use super::Glyph;
 
-use crate::window;
-use crate::window::Size;
+use crate::size;
 use crate::config;
 
 pub trait GlyphLoader {
@@ -20,6 +19,8 @@ pub trait GlyphLoader {
     /// clear
     fn clear(&mut self);
 }
+
+pub type Size = size::Size<f32>;
 
 /////////////////////////////////////////////////////////
 ///
@@ -135,8 +136,8 @@ impl Atlas {
                 gl::TEXTURE_2D,
                 0,
                 gl::RGB as i32,
-                self.size.width() as i32,
-                self.size.height() as i32,
+                self.size.x as i32,
+                self.size.y as i32,
                 0,
                 gl::RGB,
                 gl::UNSIGNED_BYTE,
@@ -207,9 +208,9 @@ impl Atlas {
             width: glyph.width,
             height: glyph.height,
             uv_x: old_x / self.size.width() as f32,
-            uv_y: self.base_line / self.size.height() as f32,
-            uv_dx: glyph.width / self.size.width() as f32,
-            uv_dy: glyph.height / self.size.height() as f32,
+            uv_y: self.base_line / self.size.y as f32,
+            uv_dx: glyph.width / self.size.x as f32,
+            uv_dy: glyph.height / self.size.y as f32,
             top: glyph.top,
             left: glyph.left,
             advance_x: glyph.advance_x,
@@ -221,14 +222,14 @@ impl Atlas {
 
     // checks whether there is room on the current row for the new glyph
     fn has_space(&self, glyph: &RasterizedGlyph) -> bool {
-        self.x + glyph.width < self.size.width() as f32
+        self.x + glyph.width < self.size.x as f32
     }
     
     // advance to the next row of the atlas
     // Errors if there is no more room
     fn advance(&mut self) -> Result<()> {
         println!("Advance!");
-        if self.base_line + self.max_height < self.size.height() as f32 {
+        if self.base_line + self.max_height < self.size.y as f32 {
             self.x = 0.0;
             self.base_line += self.max_height;
             self.max_height = 0f32;

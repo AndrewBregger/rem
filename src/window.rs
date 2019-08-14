@@ -12,6 +12,7 @@ pub use glutin::{ContextError, CreationError};
 // needed for size
 use glutin::dpi::LogicalSize;
 use std::convert::Into;
+use crate::size;
 
 #[derive(Debug)]
 pub enum Error {
@@ -21,31 +22,21 @@ pub enum Error {
 
 // Uses the entire Result path so result is not redeclared in this scope.
 pub type Result<T> = ::std::result::Result<T, Error>;
+pub type WindowSize = size::Size<f32>;
 
-#[derive(Debug, Clone, Copy)]
-pub struct Size(f64, f64);
-
-impl Size {
-    pub fn new(width: f64, height: f64) -> Self {
-        Size(width, height)
+impl WindowSize {
+    pub fn width(&self) -> f32 {
+        self.x
     }
 
-    pub fn from(width: f32, height: f32) -> Self {
-        Size::new(width as f64, height as f64)
-    }
-
-    pub fn width(&self) -> f64 {
-        self.0
-    }
-
-    pub fn height(&self) -> f64 {
-        self.1
+    pub fn height(&self) -> f32 {
+        self.y
     }
 }
 
-impl Into<LogicalSize> for Size {
+impl Into<LogicalSize> for WindowSize {
     fn into(self) -> LogicalSize {
-        LogicalSize::new(self.0, self.1)
+        LogicalSize::new(self.x.into(), self.y.into())
     }
 }
 
@@ -61,7 +52,7 @@ pub struct Window {
 
     // the current size of the window.
     // When a window size is updated this value will be updated as well.
-    size: Size,
+    size: WindowSize,
 
     // is the mouse visible
     // @NTOE: Maybe this should be associated with a pane. But
@@ -84,7 +75,7 @@ impl Window {
     // Change size of a WindowConfig or Config object so the window
     // is created to some properties specified by the user.
     // A config created by loading some config file (rem.config or whatever)
-    pub fn new(event_loop: EventsLoop, size: Size) -> Result<Self> {
+    pub fn new(event_loop: EventsLoop, size: WindowSize) -> Result<Self> {
         let window = Self::build_window(&event_loop, size)?;
 
         Ok(Self {
@@ -103,19 +94,19 @@ impl Window {
         self.window.window().get_hidpi_factor()
     }
     
-    pub fn dimensions(&self) -> (f32, f32) {
+    pub fn dimensions(&self) -> WindowSize {
         if let Some(size) = self.window.window().get_inner_size() {
-            (size.width as f32, size.height as f32)
+            WindowSize::new(size.width as f32, size.height as f32)
         }
         else {
-            (0.0, 0.0)
+            self.size
         }
     }
 
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     fn build_window(
         event_loop: &EventsLoop,
-        size: Size,
+        size: WindowSize,
     ) -> Result<WindowedContext<PossiblyCurrent>> {
         use glutin::{WindowBuilder, ContextBuilder};
 
@@ -124,9 +115,9 @@ impl Window {
             .with_dimensions(size.into())
             .with_resizable(true)
             // for now
-            .with_decorations(true)
+            .with_decorations(true);
             // test right now
-            .with_transparency(true);
+            // .with_transparency(true);
         // @TODO: Window icon.
         // .window_window_icon(???)
 
@@ -153,7 +144,7 @@ impl Window {
     #[cfg(target_os = "macos")]
     fn build_window(
         event_loop: &EventsLoop,
-        size: Size,
+        size: WindowSize,
     ) -> Result<WindowedContext<PossiblyCurrent>> {
         use super::glutin::os::macos::WindowBuilderExt;
         use super::glutin::{WindowBuilder, ContextBuilder};
@@ -191,7 +182,7 @@ impl Window {
         self.event_loop.poll_events(f);
     }
 
-    pub fn swap_buffers(&mut self) {
+    pub fn swap_buffers(&self) {
         self.window.swap_buffers().unwrap();
     }
     
@@ -200,6 +191,4 @@ impl Window {
         gl::load_with(|s| self.window.get_proc_address(s) as *const _);
         Ok(())
     }
-
-
 }

@@ -1,7 +1,7 @@
 use glm::Vec2;
 use super::font::{FontDesc, FontSize};
-
 use std::default::Default;
+use crate::pane;
 
 #[derive(Debug, Clone)]
 pub struct Font {
@@ -32,6 +32,14 @@ pub struct Tab {
 pub struct Atlas {
     pub size: f32,
 }
+
+#[derive(Debug, Clone)]
+pub struct Cursor {
+    /// the cursor mode in insert mode
+    pub insert: pane::CursorMode,
+    /// the cursor mode in normal mode
+    pub normal: pane::CursorMode,
+}
 // ColorScheme? Theme? Theses could be file names and the settings struct handles how they interact
 
 #[derive(Debug, Clone)]
@@ -41,6 +49,7 @@ pub struct Config {
     pub window: Window,
     pub tabs: Tab,
     pub atlas: Atlas,
+    pub cursor: Cursor,
 }
 
 
@@ -70,6 +79,10 @@ impl Default for Config {
             },
             atlas: Atlas {
                 size: 1024f32,
+            },
+            cursor: Cursor {
+                insert: pane::CursorMode::Line,
+                normal: pane::CursorMode::Box,
             }
         }
     }
