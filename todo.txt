@@ -16,6 +16,8 @@ Pane
 
 Open Questions:
 Where should the text color be stored?
+How should the rendering handle higher screen resolutions: dpi_factor >
+1?
 
 Vsync delays the event loop process from closing in all platforms.
 A solution to this is to render in a different thread than the event loop.

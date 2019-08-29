@@ -64,6 +64,10 @@ impl Cursor {
             mode: self.mode
         }
     }
+
+    pub fn pos(&self) -> &Position {
+        &self.pos
+    }
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -132,6 +136,10 @@ impl Pane {
         }
     }
 
+    pub fn active(&self) -> bool {
+        self.active
+    }
+
     pub fn set_font(&mut self, font: FontKey) {
         self.font = font
     }
@@ -164,6 +172,10 @@ impl Pane {
         shader.deactivate();
 
         Ok(())
+    }
+    
+    pub fn cursor(&self) -> &Cursor {
+        &self.cursor
     }
 
     pub fn pane_size(size: &Size, cell_size: &CellSize) -> (f32, f32) {
@@ -198,6 +210,10 @@ impl Pane {
         self.dirty
     }
 
+    pub fn set_dirty(&mut self) {
+        self.dirty = true;
+    }
+
     pub fn bind_frame(&self) {
         self.frame.bind()
     }
@@ -212,5 +228,10 @@ impl Pane {
 
     pub fn unbind_frame(&self) {
         self.frame.unbind()
+    }
+
+    pub fn advance_cursor(&mut self) {
+        // what is the actual logic of advancing the cursor.
+        self.cursor.pos.x += 1; 
     }
 }

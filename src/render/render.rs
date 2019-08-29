@@ -18,6 +18,9 @@ use super::{Error, Result, Glyph, GlyphCache};
 use super::caches::Atlas;
 use super::framebuffer::FrameBuffer;
 
+// static mut CURRENT_TIME: std::time::Instant = std::time::Instant::new(0, 0); // = std::time::Instant::now();
+
+
 #[macro_export]
 macro_rules! glCheck {
     () => {{
@@ -46,7 +49,7 @@ macro_rules! glCheck {
 
 static BATCH_SIZE: usize = 1024;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct InstanceData {
     // cell
     pub x: f32,
@@ -71,6 +74,7 @@ pub struct InstanceData {
     pub br: f32,
     pub bg: f32,
     pub bb: f32,
+    pub ba: f32,
 
     pub texture_id: i32
 }
@@ -88,6 +92,10 @@ impl Batch {
         }
     }
 
+    pub fn is_full(&self) -> bool {
+        self.instances.len() == BATCH_SIZE 
+    }
+
     pub fn is_empty(&self) -> bool {
         self.instances.is_empty()
     }
@@ -103,6 +111,18 @@ impl Batch {
         }
 
         self.instances.len() == BATCH_SIZE
+    }
+
+    pub fn push_background_pass_data(&mut self, x: f32, y: f32, r: f32, g: f32, b: f32, a: f32) {
+        let mut data = InstanceData::default();
+        data.x = x;
+        data.y = y;
+        data.br = r;
+        data.bg = g;
+        data.bb = b;
+        data.ba = a;
+
+        self.instances.push(data);
     }
 
     pub fn clear(&mut self) {
@@ -191,12 +211,14 @@ impl Renderer {
             stride += 3;
 
             gl::EnableVertexAttribArray(4);
-            gl::VertexAttribPointer(4, 3 as i32, gl::FLOAT, gl::FALSE, size as i32, (stride * float_size) as *const _);
+            gl::VertexAttribPointer(4, 4 as i32, gl::FLOAT, gl::FALSE, size as i32, (stride * float_size) as *const _);
             gl::VertexAttribDivisor(4, 1);
 
             glCheck!();
 
             gl::BindVertexArray(0);
+
+            gl::Enable(gl::BLEND);
         }
 
         let text_shader = TextShader::new()?;
@@ -256,10 +278,11 @@ impl Renderer {
 
                 gl::BindVertexArray(self.vao);
                 glCheck!();
+
                 gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ibo);
                 glCheck!();
-                gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
 
+                gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
                 glCheck!();
 
                 gl::BufferData(
@@ -274,9 +297,7 @@ impl Renderer {
                 //gl::GetIntegerv(gl::DRAW_FRAMEBUFFER_BINDING, &mut fbo);
 
                 self.text_shader.set_background_pass(0);
-                gl::Enable(gl::BLEND);
                 gl::DrawElementsInstanced(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null(), batch.instances.len() as i32);
-                gl::Disable(gl::BLEND);
 
                 // self.text_shader.set_background_pass(1);
                 // gl::DrawElementsInstanced(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null(), batch.instances.len() as i32);
@@ -291,6 +312,32 @@ impl Renderer {
         }
         
         Ok(())
+    }
+
+    pub fn render_background_pass(&self, batch: &Batch) -> Result<()> {
+            self.text_shader.activate();
+
+            unsafe {
+                gl::BindVertexArray(self.vao);
+                glCheck!();
+                
+                // gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ibo);
+                // glCheck!();
+                // gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
+                // glCheck!();
+                
+                gl::BufferData(
+                    gl::ARRAY_BUFFER,
+                    (mem::size_of::<InstanceData>() * BATCH_SIZE) as isize,
+                    batch.instances.as_ptr() as *const _,
+                    gl::STREAM_DRAW
+                );
+                glCheck!();
+                gl::DrawElementsInstanced(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null(), batch.instances.len() as i32);
+            }
+            self.text_shader.deactivate();
+
+            Ok(())
     }
 
     pub fn prepare_font(&mut self, dpi: f32, config: &config::Config) -> Result<super::GlyphCache<font::FreeTypeRasterizer>>  {
@@ -330,10 +377,63 @@ impl Renderer {
             gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, saved_fbo as u32);
         }
     }
+    
+    /// draws the background of a pane.
+    /// I am passing in batch to reduce the number of allocations
+    pub fn draw_pane_background(&self, batch: &mut Batch, pane: &Pane) {
+        // temporary background color
+        const R : f32 = 33f32 / 255f32;
+        const G : f32 = 33f32 / 255f32;
+        const B : f32 = 33f32 / 255f32;
+
+
+        
+        let pane_size = pane.size();
+        println!("{:?}", pane_size);
+        
+        self.text_shader.activate();
+        self.text_shader.set_background_pass(1);
+        self.text_shader.deactivate();
+
+        for i in 0..=pane_size.x {
+            for j in 0..=pane_size.y {
+                batch.push_background_pass_data(i as f32, j as f32, R, G, B, 1.0);
+
+                if batch.is_full() {
+                    self.render_background_pass(&batch);
+                    batch.clear();
+                }
+            }
+        }
+        
+        // if it is full then draw it.
+        if batch.is_full() {
+            self.render_background_pass(&batch);
+            batch.clear();
+        }
+
+
+        // if duration.as_millis() >= CURSOR_TIME.as_millis() {
+        let cursor = pane.cursor();
+        batch.push_background_pass_data(cursor.pos().x as f32, cursor.pos().y as f32,
+            1.0, 1.0, 1.0, 1.0);
+        // }
+
+        self.render_background_pass(&batch);
+        batch.clear();
+
+    }
 
     /// assumes the frame buffer has been rendered to and ready to be drawn.
     pub fn draw_rendered_pane(&self, window: &Window, pane: &Pane) {
-        let (w, h): (f32, f32) = window.dimensions().into();
+        let (w, h): (i32, i32) = if let Some(s) = window.get_inner_size() {
+            let s = s.to_physical(window.dpi_factor());
+            (s.width as i32, s.height as i32)
+        }
+        else {
+            unreachable!();
+        };
+
         // println!("{} {}", w, h);
         let pane_size = pane.pane_size_in_pixels();
         // println!("{:?}", pane_size);
@@ -347,8 +447,8 @@ impl Renderer {
             gl::BlitFramebuffer(
                 pane_loc.x as i32,
                 pane_loc.y as i32,
-                w as i32, 
-                h as i32,
+                w, 
+                h,
                 0,
                 0,
                 pane_size.0 as i32,
@@ -360,4 +460,5 @@ impl Renderer {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
     }
+
 }

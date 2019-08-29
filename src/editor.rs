@@ -25,6 +25,14 @@ pub enum Error {
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
+#[derive(Debug, Clone, Copy)]
+pub enum EditorMode {
+    Insert = 0,
+    Normal,
+    CommandInput,
+    Visual,
+}
+
 
 /// Main structure of the application
 pub struct App {
@@ -36,6 +44,8 @@ pub struct App {
     engine: editor_core::Engine,
     /// main windows pane
     main_pane: pane::Pane,
+    /// the current mode of the editor.
+    mode: EditorMode,
     /// pane and document association.
     docs: HashMap<pane::PaneID, editor_core::DocID>,
     /// until I know where they should actually go.
@@ -75,21 +85,28 @@ impl App {
 
         let window = Window::new(
             event_loop,
-            WindowSize::new(config.window.width, config.window.height)
+            glutin::dpi::LogicalSize::new(config.window.width as f64, config.window.height as f64)
             ).map_err(|e| Error::CreationError(e))?;
 
         // Gl function cannot be loaded until I have a context
         window.init_gl().unwrap();
         check!();
 
-        let window_dpi = window.window_dpi();
+        let dpf = window.dpi_factor();
+
+        println!("Window DPI: {}", dpf);
 
         let mut renderer = render::Renderer::new(&config).map_err(|e| Error::RenderError(e))?;
 
-        let (width, height) = window.dimensions().into();
-        check!();
+        let (width, height) = if let Some(s) = window.get_inner_size() {
+            let s = s.to_physical(window.dpi_factor());
+            (s.width as f32, s.height as f32)
+        }
+        else {
+            unreachable!();
+        };
 
-        let cache = renderer.prepare_font(window_dpi as f32, &config).map_err(|e| Error::RenderError(e))?;
+        let cache = renderer.prepare_font(dpf as f32, &config).map_err(|e| Error::RenderError(e))?;
         check!();
 
         let cell_size = Self::compute_cell_size(cache.metrics(), &config.font);
@@ -116,6 +133,8 @@ impl App {
            renderer,
            engine,
            main_pane,
+           /// @TODO change back to normal
+           mode: EditorMode::Insert,
            docs: HashMap::new(),
            cache,
            config 
@@ -128,7 +147,15 @@ impl App {
 
     fn prepare(&self) -> Result<()> {
 
-        let (w, h) = self.window.dimensions().into();
+        let (w, h) = if let Some(s) = self.window.get_inner_size() {
+            let s = s.to_physical(self.window.dpi_factor());
+
+            (s.width as f32, s.height as f32)
+        }
+        else {
+            unreachable!();
+        };
+
         println!("Window Size: {} {}", w, h);
         self.renderer.set_view_port(w, h);
 // this module should have any unsafe code
@@ -180,14 +207,16 @@ impl App {
         if !pane.redraw() {
             return Ok(());
         }
+
         // set the view port and set
         pane.ready_render(&self.renderer).map_err(|e| Error::RenderError(e))?;
 
         // binds the framebuffer for rendering
         pane.bind_frame_as_write();
 
-        // Since the entire frame is to be drawn to, the frame doesnt need to be cleared?.
         self.renderer.clear_frame(None);
+
+        // Since the entire frame is to be drawn to, the frame doesnt need to be cleared?.
 
         let id = pane.id;
 
@@ -202,6 +231,9 @@ impl App {
         let mut batch = render::Batch::new();
         let render = &self.renderer;
         let cache = &self.cache;
+        let cursor = pane.cursor();
+
+        render.draw_pane_background(&mut batch, pane);
 
         let lines = document.line_slice(pane.start(), pane.start() + pane.size().y as usize);
 
@@ -226,6 +258,14 @@ impl App {
                 // @TODO: handle the case when c is not in the cache
                 let glyph = cache.get(c as u32).unwrap();
 
+                let text_color = if cell.0 == cursor.pos().x &&
+                   cell.1 == cursor.pos().y  {
+                    [0.0, 0.0, 0.0]
+                }
+                else {
+                    [1.0, 1.0, 1.0]
+                };
+
                 let instance = render::InstanceData {
                     x: cell.0 as f32,
                     y: cell.1 as f32,
@@ -233,8 +273,8 @@ impl App {
                     // text metrics offsets for the character
                     width: glyph.width,
                     height: glyph.height,
-                    offset_x: glyph.bearing_x + 1.0,
-                    offset_y: glyph.bearing_y,
+                    offset_x: glyph.bearing_x, // - 1.0,
+                    offset_y: glyph.bearing_y + 2.0,
 
                     // texture coordinates
                     uv_x: glyph.uv_x,
@@ -242,13 +282,14 @@ impl App {
                     uv_dx: glyph.uv_dx,
                     uv_dy: glyph.uv_dy,
 
-                    tr: 0.7,
-                    tg: 0.4,
-                    tb: 0.7,
+                    tr: text_color[0],
+                    tg: text_color[1],
+                    tb: text_color[2],
 
                     br: 0.0,
                     bg: 0.0,
                     bb: 0.0,
+                    ba: 1.0,
 
                     texture_id: glyph.atlas as i32,
                 };
@@ -270,36 +311,130 @@ impl App {
 
     pub fn process_input(&mut self) -> bool {
         let mut running = true;
-        let process = |event| {
-            use glutin::*;
-            match event {
-                // LoopDestroyed => running = false,
-                Event::DeviceEvent { .. } => (),
-                Event::WindowEvent { ref event, .. } => match event {
-                    WindowEvent::KeyboardInput { ref input, .. } => {
-                        if let Some(VirtualKeyCode::Escape) = input.virtual_keycode {
-                            if input.state == ElementState::Pressed {
-                            }
-                        }
-                    }
-                    // Maybe using KeyboardInput and processing that would
-                    // give a better using experience instead of using ReceivedCharacter
-                    WindowEvent::ReceivedCharacter(_) => (), 
-                    WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
-                    _ => (),
-                },
-                _ => (),
-            }
-        };
+        let mut events = Vec::new();
 
-        self.window.poll_events(process);
+        self.window.poll_events(|event| {
+            events.push(event)
+        });
+        
+        if events.is_empty() {
+            return true;
+        }
+
+        for event in events {
+            running = self.process_event(&event);
+        }
 
         running
     }
 
+    pub fn process_event(&mut self, event: &glutin::Event) -> bool {
+        use glutin::*;
+        match *event {
+            // LoopDestroyed => running = false,
+            Event::DeviceEvent { .. } => true,
+            Event::WindowEvent { ref event, .. } => match event {
+                WindowEvent::KeyboardInput { ref input, .. } => {
+                    println!("{:?}", input);
+                    true
+                },
+                // Maybe using KeyboardInput and processing that would
+                // give a better using experience instead of using ReceivedCharacter
+                WindowEvent::ReceivedCharacter(ch) => {
+                    println!("Character Input: {}", *ch);
+                    self.process_character_input(*ch);
+                    true
+                }, 
+                WindowEvent::CloseRequested | WindowEvent::Destroyed => false,
+                _ => true,
+            },
+            _ => true,
+        }
+    }
+
+    pub fn active_pane(&self) -> Option<&pane::Pane> {
+        if self.main_pane.active() {
+            Some(&self.main_pane)
+        }
+        else {
+            None
+        }
+    }
+
+    fn get_active_pane(&mut self) -> Option<&mut pane::Pane> {
+        if self.main_pane.active() {
+            Some(&mut self.main_pane)
+        }
+        else {
+            None
+        }
+    }
+
+    pub fn editor_mode(&self) -> EditorMode {
+        self.mode
+    }
+
+    fn get_pane_document(&self, pane: pane::PaneID) -> Option<&editor_core::Document> {
+        unimplemented!();
+    }
+
+    fn get_pane_document_id(&self, pane_id: pane::PaneID) -> Option<&editor_core::DocID> {
+        self.docs.get(&pane_id)
+    }
+
+    fn process_character_input(&mut self, ch: char) {
+        match self.editor_mode() {
+            EditorMode::Normal => {
+                if ch == ':' {
+                    self.mode = EditorMode::CommandInput;
+                }
+                // otherwise the input is ignored.
+            },
+            EditorMode::CommandInput => self.process_command_input(ch),
+            EditorMode::Insert => self.process_character_insert(ch),
+            _ => ()
+        }
+    }
+
+    fn process_command_input(&mut self, ch: char) {
+    }
+
+    fn process_character_insert(&mut self, ch: char) {
+        if let Some(pane) = self.get_active_pane() {
+            // location of the cursor.
+            let cursor = pane.cursor();
+            let x = cursor.pos().x;
+            let y = cursor.pos().y;
+            // the first visable line in the pane.
+            let start_index = pane.start();
+            let pane_id = pane.id;
+            pane.advance_cursor();
+            pane.set_dirty();
+            println!("{:?}", pane.cursor());
+            // for the drop of pane reference
+            drop(pane);
+
+            if let Some(doc_id) = self.get_pane_document_id(pane_id) {
+                let op = editor_core::Operation::insert(doc_id.clone(), start_index, x, y, ch);
+                self.engine.execute_on(op);
+            }
+            else {
+                panic!("Corrupted pane and document association");
+            }
+
+        } 
+    }
+
     pub fn render_window(&self) {
         let pane = &self.main_pane; 
-        let (w, h) = self.window.dimensions().into(); 
+        let (w, h) = if let Some(s) = self.window.get_inner_size() {
+            let s = s.to_physical(self.window.dpi_factor());
+
+            (s.width as f32, s.height as f32)
+        }
+        else {
+            unreachable!();
+        };
 
         unsafe { gl::BindFramebuffer(gl::FRAMEBUFFER, 0); }
         self.renderer.clear_frame(None);

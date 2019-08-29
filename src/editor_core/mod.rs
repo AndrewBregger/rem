@@ -17,15 +17,80 @@ pub enum Error {
    InsertError,
    DeleteError,
    FileExists,
+   InvalidDocID,
+   MissingPath,
    FileError(io::Error),
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
-/// An operation that can be performed on a document.
-/// Engine performs these operations on the Document.
-pub enum Operation  {
+/// describes the differnt operations that can be performed
+#[derive(Debug, Clone)]
+enum OperationKind {
+    /// Insert a single character at .0, .1
+    Insert(usize, u32, u32, char),
+    /// Delete character at .0, .1
+    Delete(usize, u32, u32),
+    /// Paste the content of the clipboard at .0, .1
+    Paste(usize, u32, u32, String),
+    /// Writes buffer to disk
+    WriteFile,
+    /// Closes the file
+    CloseFile,
+    /// Invalid operation
+    Invalid,
+
+
+    // future operations
+    CopySelection,
+    DeleteSelection,
 }
+
+/// An operation that is being performed on the given file.
+#[derive(Debug, Clone)]
+pub struct Operation  {
+    doc: DocID,
+    kind: OperationKind,
+}
+
+impl Operation {
+    pub fn write_file(doc: DocID) -> Self {
+        Self {
+            doc,
+            kind: OperationKind::WriteFile,
+        }
+    }
+
+    pub fn close_file(doc: DocID) -> Self {
+        Self {
+            doc,
+            kind: OperationKind::CloseFile,
+        }
+    }
+
+    pub fn insert(doc: DocID, start_index: usize, x: u32, y: u32, ch: char) -> Self {
+        Self {
+            doc,
+            kind: OperationKind::Insert(start_index, x, y, ch),
+        }
+    }
+
+    pub fn delete(doc: DocID, start_index: usize, x: u32, y: u32, ch: char) -> Self {
+        Self {
+            doc,
+            kind: OperationKind::Delete(start_index, x, y),
+        }
+    }
+
+    pub fn paste(doc: DocID, start_index: usize, x: u32, y: u32, data: &str) -> Self {
+        Self {
+            doc,
+            kind: OperationKind::Paste(start_index, x, y, data.to_owned()),
+        }
+    }
+}
+
+
 
 
 pub struct Engine {
@@ -111,6 +176,34 @@ impl Document {
       let first = self.content.lines().skip(start);
       first.take(end).collect()
    }
+
+   pub fn write(&self) -> Result<()> {
+       // this will error if the write inself fails or if there isnt a path associated with the
+       // document.
+       Ok(())
+   }
+
+   pub fn insert(&mut self, index: u64, ch: char) -> Result<()> {
+       println!("Character '{}' inserted at {}", ch, index);
+       self.content.insert_char(index as usize, ch);
+       Ok(())
+   }
+
+   pub fn delete(&mut self, index: u64) -> Result<()> {
+       println!("Deleting character at index {}", index);
+       Ok(())
+   }
+
+   pub fn paste(&mut self, index: u64, data: &str) -> Result<()> {
+       println!("Pasting {} at index {}", data, index);
+       Ok(())
+   }
+
+   pub fn cursor_index(&self, first_line: usize, x: u32, y: u32) -> u64 {
+       let first_line = first_line + y as usize;
+       let line_index = self.content.line_to_char(first_line);
+       line_index as u64 + x as u64
+   }
 }
 
 
@@ -145,6 +238,9 @@ impl Engine {
       Ok((self.docs.last().unwrap().id(), index as usize))
    }
 
+   pub fn close_file(&mut self, doc: DocID) -> Result<()> {
+       unimplemented!();
+   }
 
    pub fn get_document(&self, doc: DocID) -> Option<&Document> {
       match self.document_map.get(&doc) {
@@ -153,10 +249,42 @@ impl Engine {
       }
    }
 
+   pub fn get_mut_document(&mut self, doc: DocID) -> Option<&mut Document> {
+      match self.document_map.get(&doc) {
+         Some(e) => Some(&mut self.docs[*e]),
+         _ => None
+      }
+   }
+
    /// Executes a given operation on document of pane.
    /// pane: The identifier to know which file is being operated on.
    /// op: The operation being executed. See Operation for more detail.
-   pub fn execute_on(&mut self, doc: DocID, op: Operation) -> Result<()> {
-      unimplemented!()
+   pub fn execute_on(&mut self, op: Operation) -> Result<()> {
+       let document = self.get_mut_document(op.doc).ok_or(Error::InvalidDocID)?;
+
+       println!("Operation {:?}", op);
+
+       match op.kind {
+           OperationKind::Insert(start_index, x, y, ch) => {
+               let index = document.cursor_index(start_index, x, y);
+               document.insert(index, ch)?
+           },
+           OperationKind::Delete(start_index, x, y) => {
+               let index = document.cursor_index(start_index, x, y);
+               document.delete(index)?
+           },
+           OperationKind::Paste(start_index, x, y, data) => {
+               let index = document.cursor_index(start_index, x, y);
+               document.paste(index, data.as_str())?
+           },
+           OperationKind::WriteFile => {
+               document.write()?
+           },
+           OperationKind::CloseFile => self.close_file(op.doc)?,
+           OperationKind::Invalid => panic!("Attempting to execute invalid operatiion"),
+           _ => unimplemented!(),
+       }
+
+       Ok(())
    }
 }

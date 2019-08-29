@@ -63,7 +63,7 @@ impl Default for Config {
                     name: "DroidSansMono".to_string(),
                     path: std::path::Path::new("dev/DroidSansMono.ttf").to_path_buf(),
                 },
-                size: FontSize { pixel_size: 14.0 },
+                size: FontSize { pixel_size: 20.0 },
                 offset: Vec2::new(0.0, 0.0)
             },
             colors: Colors {
