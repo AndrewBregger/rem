@@ -1,3 +1,6 @@
+mod layout;
+use layout::{VerticalLayout, HorizontalLayout};
+
 use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
 use std::cmp::Eq;
 
@@ -81,81 +84,57 @@ impl PaneID {
     }
 }
 
+// should layout panes have ids?
+pub enum Pane {
+    Vert(VerticalLayout),
+    Hor(HorizontalLayout),
+    Edit(EditPane),
+}
+
 
 /// An editable section of the screen.
 #[derive(Debug)]
-pub struct Pane {
+pub struct EditPane {
     /// Size of the pane in number of cells.
     size: Size,
     /// The location of the top left of the pane.
     loc: Loc,
-    /// The cursor of this pane
-    cursor: Cursor,
-    /// is the pane active.
-    active: bool,
     /// The line number at the top of the pane.
     first_line: usize,
     /// offset of the view within the pane.
     view_offset: usize,
-    /// flag to determine if a redraw is needed
-    pub dirty: bool,
     /// Identification of Pane
     pub id: PaneID,
-    /// font of the pane
-    font: FontKey,
-    /// font size of this pane
-    font_size: FontSize,
     /// The size of each cell in the pane. This is tied to the font size.
     cell_size: CellSize,
-    /// the cached rendered pane
-    pub frame: render::framebuffer::FrameBuffer,
 }
 
-#[derive(Debug, Clone)]
-pub struct Line;
 
-impl Pane {
-    pub fn new(size: Size, loc: Loc, font: FontKey, font_size: FontSize, cell_size: CellSize, config: &config::Config) -> Self {
+
+impl EditPane {
+    pub fn new(size: Size, loc: Loc, cell_size: CellSize) -> Self {
         let id = PaneID::next();
-        let frame_size: render::framebuffer::FrameSize = Self::pane_size(&size, &cell_size).into();
-        println!("{:?} Pane Size: {:?}", id, frame_size);
 
         Self {
             size,
             loc,
-            cursor: Cursor::new(id, config.cursor.normal.clone()),
-            active: true,
             first_line: 0 as usize,
             view_offset: 0 as usize,
             dirty: true,
             id,
-            font,
-            font_size,
             cell_size,
-            frame: render::framebuffer::FrameBuffer::with_size(frame_size).unwrap(),
         }
     }
 
-    pub fn active(&self) -> bool {
-        self.active
+    pub fn id(&self) -> PaneID {
+        self.id
     }
 
-    pub fn set_font(&mut self, font: FontKey) {
-        self.font = font
-    }
-
-    pub fn increase_font_size(&mut self, inc: f32) {
-        self.font_size.pixel_size += inc;
-    }
-
-    pub fn decrease_font_size(&mut self, inc: f32) {
-        self.font_size.pixel_size -= inc;
-    }
-
+/*
     pub fn ready_render(&self, renderer: &render::Renderer) -> Result<(), render::Error> {
         // the size of the pane in pixels.
-        let (w, h) = self.pane_size_in_pixels();
-
+        let (w, h) = self.compute_render_size();
+        
         /// sets the view port of the render to a specific size and location.
         renderer.set_view_port_at(w, h, self.loc.x, self.loc.y);
 
@@ -165,6 +144,7 @@ impl Pane {
         // set uniforms
 
         let ortho = glm::ortho(0f32, w, h, 0f32, -1f32, 1f32);
+        // let ortho = glm::ortho(0f32, w, 0f32, h, -1f32, 1f33);
 
         shader.set_perspective(ortho);
         shader.set_cell_size(self.cell_size);
@@ -173,10 +153,7 @@ impl Pane {
 
         Ok(())
     }
-    
-    pub fn cursor(&self) -> &Cursor {
-        &self.cursor
-    }
+*/
 
     pub fn pane_size(size: &Size, cell_size: &CellSize) -> (f32, f32) {
         let size = glm::Vec2::new(size.x as f32, size.y as f32);
@@ -205,7 +182,7 @@ impl Pane {
     pub fn pane_size_in_pixels(&self) -> (f32, f32) {
         Self::pane_size(&self.size, &self.cell_size)
     }
-
+/*
     pub fn redraw(&self) -> bool {
         self.dirty
     }
@@ -234,4 +211,5 @@ impl Pane {
         // what is the actual logic of advancing the cursor.
         self.cursor.pos.x += 1; 
     }
+*/
 }

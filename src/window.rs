@@ -86,6 +86,17 @@ impl Window {
         self.window().get_inner_size()
     }
 
+    pub fn get_physical_size(&self) -> PhysicalSize {
+        if let Some(size) = self.get_inner_size() {
+            let dpi_factor = self.dpi_factor();
+
+            size.to_physical(dpi_factor)
+        }
+        else {
+            panic!("Attempting to get size of invalid window");
+        }
+    }
+
     pub fn window(&self) -> &glutin::Window {
         self.context.window()
     }
@@ -93,8 +104,6 @@ impl Window {
     pub fn set_title(&self, title: &str) {
         self.window().set_title(title)
     }
-
-
 
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     fn build_window(

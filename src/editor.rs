@@ -4,7 +4,7 @@ use std::collections::HashMap;
 // editor area
 use crate::pane;
 use pane::CellSize;
-use pane::Pane;
+use pane::{Pane, EditPane};
 
 // editing engine
 use crate::editor_core;
@@ -34,16 +34,98 @@ pub enum EditorMode {
 }
 
 
+/// The state around the cursor and other info about the text.
+/// I do not know what this is yet.
+#[derive(Debug)]
+struct EditorState;
+
+/// The current state of a pane.
+#[derive(Debug)]
+struct PaneState {
+    pub pane: PaneID,
+    /// The cursor of this pane
+    pub cursor: pane::Cursor,
+    /// is the pane active.
+    pub active: bool,
+    /// the cached rendered pane
+    pub frame: render::framebuffer::FrameBuffer,
+}
+
+impl PaneState {
+    fn new(pane: &pane::Pane) -> Result<Self, render::framebuffer::Error>{
+        let size = pane.pane_size_in_pixels();
+
+        Ok(Self {
+            pane: pane.id(),
+            cursor: pane::Cursor::new(pane.id(), pane::CusorMode::Normal),
+            active: false,
+            frame: render::framebuffer::FrameBuffer::new(size.into())?
+        })
+    }
+}
+
+pub struct TabBar {
+
+}
+
+
+
+/// Represents the layout and structure of the main window.
+/// I.E where the directory tree will be rendered, tab bar, message bar,
+///     and handling of pane splits.
+#[derive(Debug)]
+struct MainWindow {
+    /// panes are recurisively structured.
+    pane: pane::Pane,
+    /// pane render states
+    pane_states: HashMap<PaneID, PaneState>,
+    /// this is only shown when there are
+    tab_bar: Option<TabBar>,
+    /// the window the main window is associated with.
+    window: Window,
+    /// The size of a cell
+    cell_size: CellSize,
+    /// The window dimensions in cells.
+    cells: Size<u32>
+}
+
+impl MainWindow {
+    fn new(window: Window, cell_size: CellSize, cells: Size<u32>) -> Result<Self> {
+
+        let size = window.get_physical_size();
+    
+        let pane = pane::Pane::new(
+            );
+
+        Ok(Self {
+            pane,
+            pane_states: HashMap::new(),
+            tab_bar: None,
+            window,
+            cell_size,
+            cells
+        })
+    }
+
+    pub fn window(&self) -> &Window {
+        &self.window
+    }
+
+    pub fn active_pane(&self) -> &pane::Pane {
+    }
+
+    pub fn active_pane_mut(&mut self) -> &mut pane::Pane {
+    }
+}
+
 /// Main structure of the application
 pub struct App {
-    /// Main window of the application
-    window: Window,
     /// renders the entire application
     renderer: render::Renderer,
     ///  main editing engine, owns the open documents
     engine: editor_core::Engine,
     /// main windows pane
-    main_pane: pane::Pane,
+    main_window: MainWindow<'_>,
     /// the current mode of the editor.
     mode: EditorMode,
     /// pane and document association.
@@ -98,13 +180,7 @@ impl App {
 
         let mut renderer = render::Renderer::new(&config).map_err(|e| Error::RenderError(e))?;
 
-        let (width, height) = if let Some(s) = window.get_inner_size() {
-            let s = s.to_physical(window.dpi_factor());
-            (s.width as f32, s.height as f32)
-        }
-        else {
-            unreachable!();
-        };
+        let (width, height = window.get_physical_size();
 
         let cache = renderer.prepare_font(dpf as f32, &config).map_err(|e| Error::RenderError(e))?;
         check!();
@@ -117,14 +193,8 @@ impl App {
 
         println!("Cell Size: {:?}\nPane Size: {:?}\nPan Pos: {:?}", cell_size, size, pos);
         check!();
-
-        let main_pane = pane::Pane::new(
-            size,
-            pos,
-            cache.font(),
-            cache.font_size(),
-            cell_size,
-            &config);
+        
+        let main_window = MainWindow<'_>
 
         let engine = editor_core::Engine::new();
 
@@ -147,17 +217,12 @@ impl App {
 
     fn prepare(&self) -> Result<()> {
 
-        let (w, h) = if let Some(s) = self.window.get_inner_size() {
-            let s = s.to_physical(self.window.dpi_factor());
-
-            (s.width as f32, s.height as f32)
-        }
-        else {
-            unreachable!();
-        };
+        let (w, h) = self.main_window.window().get_physical_size();
 
         println!("Window Size: {} {}", w, h);
+
         self.renderer.set_view_port(w, h);
+
 // this module should have any unsafe code
         unsafe {
             gl::Enable(gl::BLEND);
@@ -180,6 +245,7 @@ impl App {
     pub fn compute_main_pane(width: f32, height: f32, cell_size: CellSize) -> (pane::Size, pane::Loc) {
         let cells_x = width / cell_size.x;
         let cells_y = height / cell_size.y;
+
         println!("{}/{} {}/{}", width, cell_size.x, height, cell_size.y);
         println!("{} {}", cells_x, cells_y);
         println!("{} {}", cells_x * cell_size.x, cells_y * cell_size.y);
@@ -192,118 +258,113 @@ impl App {
         self.docs.insert(self.main_pane.id, doc);
     }
 
-    /// TEMPORARY making sure the caching works when rendering.
-    pub fn pane_rendered(&mut self) {
-        self.main_pane.dirty = false;
-    }
-
     // does this need to mut the state?
     // rewrite this to handle the different layouts
     pub fn render_panes(&self) -> Result<()> {
         
         // temp
-        let pane = &self.main_pane;
-
-        if !pane.redraw() {
-            return Ok(());
-        }
-
-        // set the view port and set
-        pane.ready_render(&self.renderer).map_err(|e| Error::RenderError(e))?;
-
-        // binds the framebuffer for rendering
-        pane.bind_frame_as_write();
-
-        self.renderer.clear_frame(None);
-
-        // Since the entire frame is to be drawn to, the frame doesnt need to be cleared?.
-
-        let id = pane.id;
-
-        let document : &editor_core::Document = match self.docs.get(&id) {
-            Some(doc) => match self.engine.get_document(doc.clone()) {
-                Some(doc) => doc,
-                None => panic!("invalid document id"),
-            },
-            _ => panic!("Invalid pane/document association")
-        };
-
-        let mut batch = render::Batch::new();
-        let render = &self.renderer;
-        let cache = &self.cache;
-        let cursor = pane.cursor();
-
-        render.draw_pane_background(&mut batch, pane);
-
-        let lines = document.line_slice(pane.start(), pane.start() + pane.size().y as usize);
-
-        let mut cell = (pane.start() as u32, 0 as u32);
-
-        for line in lines {
-            for c in line.chars() {
-                if c == '\n' {
-                    continue;
-                }
-
-                if c == ' ' {
-                    cell.0 += 1;
-                    continue;
-                }
-
-                if c == '\t' {
-                    cell.0 += self.config.tabs.tab_width as u32;
-                    continue;
-                }
-
-                // @TODO: handle the case when c is not in the cache
-                let glyph = cache.get(c as u32).unwrap();
-
-                let text_color = if cell.0 == cursor.pos().x &&
-                   cell.1 == cursor.pos().y  {
-                    [0.0, 0.0, 0.0]
-                }
-                else {
-                    [1.0, 1.0, 1.0]
-                };
-
-                let instance = render::InstanceData {
-                    x: cell.0 as f32,
-                    y: cell.1 as f32,
-                    
-                    // text metrics offsets for the character
-                    width: glyph.width,
-                    height: glyph.height,
-                    offset_x: glyph.bearing_x, // - 1.0,
-                    offset_y: glyph.bearing_y + 2.0,
-
-                    // texture coordinates
-                    uv_x: glyph.uv_x,
-                    uv_y: glyph.uv_y,
-                    uv_dx: glyph.uv_dx,
-                    uv_dy: glyph.uv_dy,
-
-                    tr: text_color[0],
-                    tg: text_color[1],
-                    tb: text_color[2],
-
-                    br: 0.0,
-                    bg: 0.0,
-                    bb: 0.0,
-                    ba: 1.0,
-
-                    texture_id: glyph.atlas as i32,
-                };
-
-                if batch.push(instance) {
-                    render.draw_batch(&batch);
-                    batch.clear();
-                }
-                cell.0 += 1;
-            }
-            cell.0 = 0; 
-            cell.1 += 1;
-        }
-        render.draw_batch(&batch);
+//        let pane = &self.main_pane;
+//
+//        if !pane.redraw() {
+//            return Ok(());
+//        }
+//
+//        // set the view port and set
+//        pane.ready_render(&self.renderer).map_err(|e| Error::RenderError(e))?;
+//
+//        // binds the framebuffer for rendering
+//        pane.bind_frame_as_write();
+//
+//        self.renderer.clear_frame(None);
+//
+//        // Since the entire frame is to be drawn to, the frame doesnt need to be cleared?.
+//
+//        let id = pane.id;
+//
+//        let document : &editor_core::Document = match self.docs.get(&id) {
+//            Some(doc) => match self.engine.get_document(doc.clone()) {
+//                Some(doc) => doc,
+//                None => panic!("invalid document id"),
+//            },
+//            _ => panic!("Invalid pane/document association")
+//        };
+//
+//        let mut batch = render::Batch::new();
+//        let render = &self.renderer;
+//        let cache = &self.cache;
+//        let cursor = pane.cursor();
+//
+//        render.draw_pane_background(&mut batch, pane);
+//
+//        let lines = document.line_slice(pane.start(), pane.start() + pane.size().y as usize);
+//
+//        let mut cell = (pane.start() as u32, 0 as u32);
+//
+//        for line in lines {
+//            for c in line.chars() {
+//                if c == '\n' {
+//                    continue;
+//                }
+//
+//                if c == ' ' {
+//                    cell.0 += 1;
+//                    continue;
+//                }
+//
+//                if c == '\t' {
+//                    cell.0 += self.config.tabs.tab_width as u32;
+//                    continue;
+//                }
+//
+//                // @TODO: handle the case when c is not in the cache
+//                let glyph = cache.get(c as u32).unwrap();
+//
+//                let text_color = if cell.0 == cursor.pos().x &&
+//                   cell.1 == cursor.pos().y  {
+//                    [0.0, 0.0, 0.0]
+//                }
+//                else {
+//                    [1.0, 1.0, 1.0]
+//                };
+//
+//                let instance = render::InstanceData {
+//                    x: cell.0 as f32,
+//                    y: cell.1 as f32,
+//                    
+//                    // text metrics offsets for the character
+//                    width: glyph.width,
+//                    height: glyph.height,
+//                    offset_x: glyph.bearing_x, // - 1.0,
+//                    offset_y: glyph.bearing_y + 2.0,
+//
+//                    // texture coordinates
+//                    uv_x: glyph.uv_x,
+//                    uv_y: glyph.uv_y,
+//                    uv_dx: glyph.uv_dx,
+//                    uv_dy: glyph.uv_dy,
+//
+//                    tr: text_color[0],
+//                    tg: text_color[1],
+//                    tb: text_color[2],
+//
+//                    br: 0.0,
+//                    bg: 0.0,
+//                    bb: 0.0,
+//                    ba: 1.0,
+//
+//                    texture_id: glyph.atlas as i32,
+//                };
+//
+//                if batch.push(instance) {
+//                    render.draw_batch(&batch);
+//                    batch.clear();
+//                }
+//                cell.0 += 1;
+//            }
+//            cell.0 = 0; 
+//            cell.1 += 1;
+//        }
+//        render.draw_batch(&batch);
 
         Ok(())
     }
@@ -353,29 +414,15 @@ impl App {
     }
 
     pub fn active_pane(&self) -> Option<&pane::Pane> {
-        if self.main_pane.active() {
-            Some(&self.main_pane)
-        }
-        else {
-            None
-        }
+        None
     }
 
     fn get_active_pane(&mut self) -> Option<&mut pane::Pane> {
-        if self.main_pane.active() {
-            Some(&mut self.main_pane)
-        }
-        else {
-            None
-        }
+        None
     }
 
     pub fn editor_mode(&self) -> EditorMode {
         self.mode
-    }
-
-    fn get_pane_document(&self, pane: pane::PaneID) -> Option<&editor_core::Document> {
-        unimplemented!();
     }
 
     fn get_pane_document_id(&self, pane_id: pane::PaneID) -> Option<&editor_core::DocID> {
@@ -400,46 +447,27 @@ impl App {
     }
 
     fn process_character_insert(&mut self, ch: char) {
-        if let Some(pane) = self.get_active_pane() {
-            // location of the cursor.
-            let cursor = pane.cursor();
-            let x = cursor.pos().x;
-            let y = cursor.pos().y;
-            // the first visable line in the pane.
-            let start_index = pane.start();
-            let pane_id = pane.id;
-            pane.advance_cursor();
-            pane.set_dirty();
-            println!("{:?}", pane.cursor());
-            // for the drop of pane reference
-            drop(pane);
+        let pane = self.main_pane.active_pane()
+        let start_index = pane.start();
+        let pane_id = pane.id;
 
-            if let Some(doc_id) = self.get_pane_document_id(pane_id) {
-                let op = editor_core::Operation::insert(doc_id.clone(), start_index, x, y, ch);
-                self.engine.execute_on(op);
-            }
-            else {
-                panic!("Corrupted pane and document association");
-            }
-
-        } 
+        if let Some(doc_id) = self.get_pane_document_id(pane_id) {
+            let op = editor_core::Operation::insert(doc_id.clone(), start_index, x, y, ch);
+            self.engine.execute_on(op);
+        }
+        else {
+            panic!("Corrupted pane and document association");
+        }
     }
 
     pub fn render_window(&self) {
         let pane = &self.main_pane; 
-        let (w, h) = if let Some(s) = self.window.get_inner_size() {
-            let s = s.to_physical(self.window.dpi_factor());
-
-            (s.width as f32, s.height as f32)
-        }
-        else {
-            unreachable!();
-        };
+        let (w, h) = self.make_window.window().get_physical_size().into();
 
         unsafe { gl::BindFramebuffer(gl::FRAMEBUFFER, 0); }
-        self.renderer.clear_frame(None);
 
-        self.renderer.set_view_port(w, h);
+        self.renderer.clear_frame(None);
+        self.renderer.set_view_port(w as f32, h as f32);
         self.renderer.draw_rendered_pane(&self.window, pane);
     }
 
