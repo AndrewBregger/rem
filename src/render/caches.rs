@@ -4,13 +4,13 @@ use std::collections::HashMap;
 use std::mem;
 use std::ptr;
 
-use super::Result;
+use super::font::{self, FontDesc, FontKey, FontSize, GlyphKey, RasterizedGlyph, Rasterizer};
 use super::Error;
-use super::font::{self, RasterizedGlyph, Rasterizer, FontKey, GlyphKey, FontSize, FontDesc};
 use super::Glyph;
+use super::Result;
 
-use crate::size;
 use crate::config;
+use crate::size;
 
 pub trait GlyphLoader {
     /// load a glyph
@@ -103,7 +103,7 @@ impl Atlas {
                     format!("Failed to allocate texture of size {:?}", self.size).to_owned(),
                 ));
             }
-        
+
             gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
             gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
 
@@ -119,17 +119,9 @@ impl Atlas {
                 gl::CLAMP_TO_BORDER as GLint,
             );
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MIN_FILTER,
-                gl::LINEAR as GLint
-            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as GLint);
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MAG_FILTER,
-                gl::LINEAR as GLint
-            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
 
             // allocate an empty texture
             gl::TexImage2D(
@@ -147,7 +139,6 @@ impl Atlas {
             // glCheck!();
 
             gl::BindTexture(gl::TEXTURE_2D, 0);
-
         }
         Ok(())
     }
@@ -160,12 +151,12 @@ impl Atlas {
         if !self.has_space(glyph) {
             self.advance()?;
         }
-    
+
         // check if the glyph will fit vertically fix in the altas.
         if self.base_line + glyph.height > self.size.height() as f32 {
             return Err(Error::AtlasFull);
         }
-        
+
         // the glyph can be added.
 
         // if the new glyph is vertically largest glyph in the row then set
@@ -173,7 +164,7 @@ impl Atlas {
         if glyph.height > self.max_height {
             self.max_height = glyph.height;
         }
-    
+
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
             // glCheck!();
@@ -181,15 +172,17 @@ impl Atlas {
             //println!("{:?}", glyph);
             //println!("{:?}", self.size);
 
-            gl::TexSubImage2D(gl::TEXTURE_2D,  
-                              0,
-                              self.x as i32,
-                              self.base_line as i32,
-                              glyph.width as i32,
-                              glyph.height as i32,
-                              gl::RGB,
-                              gl::UNSIGNED_BYTE,
-                              mem::transmute(&glyph.bitmap[0]));
+            gl::TexSubImage2D(
+                gl::TEXTURE_2D,
+                0,
+                self.x as i32,
+                self.base_line as i32,
+                glyph.width as i32,
+                glyph.height as i32,
+                gl::RGB,
+                gl::UNSIGNED_BYTE,
+                mem::transmute(&glyph.bitmap[0]),
+            );
             // glCheck!();
 
             gl::BindTexture(gl::TEXTURE_2D, 0);
@@ -200,7 +193,6 @@ impl Atlas {
         // move the x cursor forward.
         self.x += glyph.width;
 
-    
         // build the glyph
         Ok(Glyph {
             ch: glyph.glyph,
@@ -216,7 +208,7 @@ impl Atlas {
             advance_x: glyph.advance_x,
             advance_y: glyph.advance_y,
             bearing_x: glyph.bearing_x,
-            bearing_y: glyph.bearing_y, 
+            bearing_y: glyph.bearing_y,
         })
     }
 
@@ -224,7 +216,7 @@ impl Atlas {
     fn has_space(&self, glyph: &RasterizedGlyph) -> bool {
         self.x + glyph.width < self.size.x as f32
     }
-    
+
     // advance to the next row of the atlas
     // Errors if there is no more room
     fn advance(&mut self) -> Result<()> {
@@ -234,8 +226,7 @@ impl Atlas {
             self.base_line += self.max_height;
             self.max_height = 0f32;
             Ok(())
-        }
-        else {
+        } else {
             Err(Error::AtlasError("last line of atlas".to_owned()))
         }
     }
@@ -268,8 +259,8 @@ pub struct GlyphCache<T> {
 #[derive(Debug, Clone)]
 pub enum CacheMissProto {
     ErrorOnMiss,
-//    RasterizeChar,
-//    Custom(Fn(GlyphKey) -> Glyph)
+    //    RasterizeChar,
+    //    Custom(Fn(GlyphKey) -> Glyph)
 }
 //
 //impl CacheMissProto {
@@ -279,13 +270,23 @@ pub enum CacheMissProto {
 //    }
 //}
 
-
 impl<T> GlyphCache<T>
-    where T: Rasterizer {
-    pub fn new(mut rasterizer: T, font: config::Font, dpi: f32, proto: CacheMissProto) -> Result<Self> {
+where
+    T: Rasterizer,
+{
+    pub fn new(
+        mut rasterizer: T,
+        font: config::Font,
+        dpi: f32,
+        proto: CacheMissProto,
+    ) -> Result<Self> {
         let font_size = font.size;
-        let font = rasterizer.get_font(font.font).map_err(|e| Error::FontError(e))?;
-        let metrics = rasterizer.get_metrics(font, font_size).map_err(|e| Error::FontError(e))?;
+        let font = rasterizer
+            .get_font(font.font)
+            .map_err(|e| Error::FontError(e))?;
+        let metrics = rasterizer
+            .get_metrics(font, font_size)
+            .map_err(|e| Error::FontError(e))?;
 
         Ok(Self {
             glyphs: HashMap::new(),
@@ -293,7 +294,7 @@ impl<T> GlyphCache<T>
             font,
             font_size,
             metrics,
-            proto
+            proto,
         })
     }
 
@@ -314,15 +315,16 @@ impl<T> GlyphCache<T>
     pub fn request(&self, glyph: &GlyphKey) -> Result<&Glyph> {
         match self.glyphs.get(glyph) {
             Some(g) => Ok(g),
-            None => Err(Error::CacheMissChar(glyph.clone()))
+            None => Err(Error::CacheMissChar(glyph.clone())),
         }
     }
 
     pub fn load_glyph<F>(&mut self, glyph: GlyphKey, loader: &mut F)
-        where F: GlyphLoader {
-
+    where
+        F: GlyphLoader,
+    {
         let rasterizer = &mut self.rasterizer;
-    
+
         self.glyphs.entry(glyph.clone()).or_insert_with(|| {
             let size = glyph.size.clone();
             let rglyph = rasterizer.load_glyph(glyph, size).unwrap();
@@ -331,19 +333,20 @@ impl<T> GlyphCache<T>
         });
     }
 
-
-    pub fn load_glyphs<F>(&mut self, loader: &mut F) 
-        where F: GlyphLoader {
-       for c in 33..=126 {
+    pub fn load_glyphs<F>(&mut self, loader: &mut F)
+    where
+        F: GlyphLoader,
+    {
+        for c in 33..=126 {
             let g = font::GlyphKey {
                 ch: c as u32,
                 font: self.font,
-                size: self.font_size
+                size: self.font_size,
             };
             self.load_glyph(g, loader);
-       }
+        }
 
-       for c in 161..=256 {
+        for c in 161..=256 {
             let g = font::GlyphKey {
                 ch: c as u32,
                 font: self.font,
@@ -351,33 +354,34 @@ impl<T> GlyphCache<T>
             };
 
             self.load_glyph(g, loader);
-       }
+        }
     }
 
     pub fn font(&self) -> FontKey {
         self.font
     }
 
-    pub fn font_size(&self) -> FontSize  {
+    pub fn font_size(&self) -> FontSize {
         self.font_size
     }
 }
 
 pub struct LoadApi<'a> {
     atlas: &'a mut Vec<Atlas>,
-    last: usize
+    last: usize,
 }
 
 impl<'a> LoadApi<'a> {
     pub fn new(atlas: &'a mut Vec<Atlas>) -> Self {
-        Self {
-            atlas,
-            last: 0,
-        }
+        Self { atlas, last: 0 }
     }
 }
 
-fn load_glyph(atlas: &mut Vec<Atlas>, last: &mut usize, glyph: &font::RasterizedGlyph) -> Result<super::Glyph> {
+fn load_glyph(
+    atlas: &mut Vec<Atlas>,
+    last: &mut usize,
+    glyph: &font::RasterizedGlyph,
+) -> Result<super::Glyph> {
     match atlas[*last].insert(glyph) {
         Ok(glyph) => Ok(glyph),
         Err(Error::AtlasFull) => {
@@ -387,12 +391,11 @@ fn load_glyph(atlas: &mut Vec<Atlas>, last: &mut usize, glyph: &font::Rasterized
                 let t = Atlas::new(size)?;
                 atlas.push(t);
                 load_glyph(atlas, last, glyph)
-            }
-            else {
+            } else {
                 panic!("LoadApi failed to manage last atlas");
             }
-        },
-        Err(e) => Err(e)
+        }
+        Err(e) => Err(e),
     }
 }
 

@@ -1,9 +1,9 @@
 use super::ft;
 use super::PathBuf;
 
+use std::cmp::Eq;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::cmp::Eq;
 use std::sync::atomic::{AtomicU16, Ordering::SeqCst};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -11,8 +11,7 @@ pub struct FontSize {
     pub pixel_size: f32,
 }
 
-impl Eq for FontSize {
-}
+impl Eq for FontSize {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(u8)]
@@ -38,7 +37,7 @@ pub struct FontDesc {
     // pub style: Style,
     pub name: String,
     pub path: PathBuf,
-//     pub size: Size,
+    //     pub size: Size,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -57,13 +56,13 @@ pub struct FullMetrics {
 pub struct Metrics {
     pub average_advance: f32,
     pub line_height: f32,
-    pub descent: f32
+    pub descent: f32,
 }
 
 // desciption of a glyph and font.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlyphKey {
-    pub ch: u32,        // to support unicode
+    pub ch: u32,       // to support unicode
     pub font: FontKey, // the uniquly identify this font.
     pub size: FontSize,
 }
@@ -80,8 +79,6 @@ struct Face {
     render_mode: ft::RenderMode,
     lcd_mode: i32,
 }
-
-
 
 // rasterized glyph for a specified size
 #[derive(Debug, Clone)]
@@ -103,14 +100,14 @@ pub struct RasterizedGlyph {
     pub bitmap: Vec<u8>,
 }
 
-pub trait Rasterizer : std::marker::Sized {
+pub trait Rasterizer: std::marker::Sized {
     fn new(dpi_factor: f32) -> Result<Self>;
 
     fn load_glyph(&mut self, glyph: GlyphKey, size: FontSize) -> Result<RasterizedGlyph>;
 
     fn get_metrics(&self, font: FontKey, size: FontSize) -> Result<Metrics>;
 
-//     fn get_full_metrics(&self, font: FontKey, size: FontSize) -> Result<FullMetrics>;
+    //     fn get_full_metrics(&self, font: FontKey, size: FontSize) -> Result<FullMetrics>;
 
     fn get_font(&mut self, font: FontDesc) -> Result<FontKey>;
 }
@@ -163,33 +160,31 @@ impl Face {
         let index = self.face.get_char_index(glyph.ch as usize);
         if index == 0 {
             Err(Error::InvalidGlyph)
-        }
-        else {
+        } else {
             Ok(index)
         }
     }
 
     fn render_glyph(&self, glyph: GlyphKey, size: FontSize) -> Result<ft::GlyphSlot> {
         self.set_size(size);
-        
+
         // gets the index of the character
         let index = self.char_index(&glyph)?;
         // loads the glyph into the slot
         self.face.load_glyph(index, ft::face::LoadFlag::DEFAULT);
-        
+
         // gets the glyph
         let glyph = self.face.glyph();
 
         // renders the glyph into a bitmap
         glyph.render_glyph(self.render_mode);
-        
+
         // returns a copy
         Ok(glyph.clone())
     }
 }
 
 impl FreeTypeRasterizer {
-
     fn normalize_buffer(bitmap: &ft::Bitmap) -> (f32, f32, Vec<u8>) {
         let mut data = Vec::new();
         let buf = bitmap.buffer();
@@ -261,18 +256,17 @@ impl FreeTypeRasterizer {
     }
 
     fn get_rendered_glyph(&mut self, glyph: GlyphKey, size: FontSize) -> Result<RasterizedGlyph> {
-        let font = glyph.font; 
-        
+        let font = glyph.font;
+
         let face = self.find_font(font)?;
-        
 
         let bitmap = face.render_glyph(glyph.clone(), size)?;
 
         let metrics = bitmap.metrics();
 
         let (w, h, buffer) = Self::normalize_buffer(&bitmap.bitmap());
-    
-        Ok( RasterizedGlyph {
+
+        Ok(RasterizedGlyph {
             glyph: glyph.ch,
             width: w,
             height: h,
@@ -293,15 +287,14 @@ impl FreeTypeRasterizer {
 
         let metrics = face.face.size_metrics().ok_or(Error::NoSizeMetrics)?;
 
-        let cell_width =
-            match face.face.load_glyph('0' as u32, ft::face::LoadFlag::RENDER) {
-                Ok(_) => (face.face.glyph().metrics().horiAdvance / 64) as f32,
-                Err(_) => (metrics.max_advance / 64) as f32,
-            };
+        let cell_width = match face.face.load_glyph('0' as u32, ft::face::LoadFlag::RENDER) {
+            Ok(_) => (face.face.glyph().metrics().horiAdvance / 64) as f32,
+            Err(_) => (metrics.max_advance / 64) as f32,
+        };
 
-        Ok( FullMetrics {
+        Ok(FullMetrics {
             ft_metrics: metrics,
-            cell_width
+            cell_width,
         })
     }
 }
@@ -314,7 +307,7 @@ impl Rasterizer for FreeTypeRasterizer {
             library,
             faces: HashMap::new(),
             fonts: HashMap::new(),
-            dpi_factor: dpi_factor as f64
+            dpi_factor: dpi_factor as f64,
         })
     }
 
@@ -330,13 +323,12 @@ impl Rasterizer for FreeTypeRasterizer {
         let height = (full.ft_metrics.height / 64) as f32;
         let descent = (full.ft_metrics.descender / 64) as f32;
 
-        Ok( Metrics {
+        Ok(Metrics {
             average_advance: full.cell_width,
             line_height: height,
-            descent
+            descent,
         })
     }
-
 
     fn get_font(&mut self, font: FontDesc) -> Result<FontKey> {
         match self.fonts.get(&font.path) {
@@ -345,7 +337,8 @@ impl Rasterizer for FreeTypeRasterizer {
                 // build the face if it hasnt been seen yet.
                 self.fonts.insert(font.path.clone(), FontKey::next());
                 let key = self.fonts[&font.path];
-                self.faces.insert(key, Face::new(&self.library, &font.path, key)?);
+                self.faces
+                    .insert(key, Face::new(&self.library, &font.path, key)?);
 
                 return Ok(key);
             }

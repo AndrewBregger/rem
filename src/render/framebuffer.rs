@@ -3,7 +3,7 @@ use gl::types::*;
 
 use crate::size;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Error {
     Incomplete,
     ToManyBuffers,
@@ -32,15 +32,18 @@ impl FrameBuffer {
             gl::BindRenderbuffer(gl::RENDERBUFFER, render_buffer);
             gl::RenderbufferStorage(gl::RENDERBUFFER, gl::RGBA8, size.x as i32, size.y as i32);
 
-            gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, render_buffer);
+            gl::FramebufferRenderbuffer(
+                gl::FRAMEBUFFER,
+                gl::COLOR_ATTACHMENT0,
+                gl::RENDERBUFFER,
+                render_buffer,
+            );
 
             if gl::CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
                 return Err(Error::Incomplete);
-            }
-            else {
+            } else {
                 println!("Frame buffer is complete");
             }
-
 
             let attachments = [gl::COLOR_ATTACHMENT0];
             gl::DrawBuffers(1, attachments.as_ptr());
@@ -54,10 +57,9 @@ impl FrameBuffer {
         Ok(Self {
             fbo,
             render_buffer,
-            size
+            size,
         })
     }
-
 
     pub fn clear(&self) {
         unsafe {

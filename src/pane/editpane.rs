@@ -1,4 +1,4 @@
-use super::{PaneID, CellSize, Size, Position, Loc};
+use super::{CellSize, Loc, PaneID, Position, Size};
 
 #[derive(Debug, Clone)]
 pub enum CursorMode {
@@ -7,7 +7,7 @@ pub enum CursorMode {
     /// Underline cursor
     Underline,
     /// Single line cursor
-    Line
+    Line,
 }
 
 /// Represents a cursor.
@@ -26,7 +26,7 @@ impl Cursor {
         Self {
             pos: Position::new(0, 0),
             pane,
-            mode
+            mode,
         }
     }
 
@@ -34,7 +34,7 @@ impl Cursor {
         Self {
             pos,
             pane: self.pane,
-            mode: self.mode
+            mode: self.mode,
         }
     }
 
@@ -69,7 +69,7 @@ impl EditPane {
     pub fn ready_render(&self, renderer: &render::Renderer) -> Result<(), render::Error> {
         // the size of the pane in pixels.
         let (w, h) = self.compute_render_size();
-        
+
         /// sets the view port of the render to a specific size and location.
         renderer.set_view_port_at(w, h, self.loc.x, self.loc.y);
 

@@ -35,7 +35,7 @@ flat out vec4 Bg;
         Texcoords = vec2(0, 0);
     }
     else {
-        vec final_position = cell_position + glyphSize * position + glyphOffset;
+        vec2 final_position = cell_position + glyphSize * position + glyphOffset;
         gl_Position = projection * vec4(final_position, 0, 1.0);
         Texcoords = uv.xy + position * uv.zw;
     }

@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 // main rendering crate
-#[macro_use] use crate::render;
+#[macro_use]
+use crate::render;
 // editor area
 use crate::pane;
-use pane::CellSize;
-use pane::{Pane, PaneID};
+use pane::{CellSize, Cells, Cursor, HorizontalLayout, Pane, PaneID, PaneKind, VerticalLayout};
+use render::PaneState;
 
 // editing engine
 use crate::editor_core;
@@ -13,8 +14,8 @@ use crate::config;
 // main window
 use crate::window::{Window, WindowSize};
 // font managment(for now)
-use crate::font;
 use super::size::Size;
+use crate::font;
 // key bindings
 // use crate::bindings;
 
@@ -22,6 +23,7 @@ use super::size::Size;
 pub enum Error {
     CreationError(crate::window::Error),
     RenderError(render::Error),
+    EngineError(editor_core::Error),
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -34,40 +36,13 @@ pub enum EditorMode {
     Visual,
 }
 
-
 /// The state around the cursor and other info about the text.
 /// I do not know what this is yet.
 #[derive(Debug)]
 struct EditorState;
 
-/// The current state of a pane.
-#[derive(Debug)]
-struct PaneState {
-    pub pane: PaneID,
-    /// The cursor of this pane
-    pub cursor: pane::Cursor,
-    /// is the pane active.
-    pub active: bool,
-    /// the cached rendered pane
-    pub frame: render::framebuffer::FrameBuffer,
-}
-
-impl PaneState {
-    fn new(pane: &pane::Pane) -> ::std::result::Result<Self, render::framebuffer::Error>{
-        let size = pane.pane_size_in_pixels();
-
-        Ok(Self {
-            pane: pane.id(),
-            cursor: pane::Cursor::new(pane.id(), pane::CursorMode::Box),
-            active: false,
-            frame: render::framebuffer::FrameBuffer::new(size.into())?
-        })
-    }
-}
-
+#[derive(Debug, Clone)]
 pub struct TabBar;
-
-
 
 /// Represents the layout and structure of the main window.
 /// I.E where the directory tree will be rendered, tab bar, message bar,
@@ -85,42 +60,67 @@ struct MainWindow {
     /// The size of a cell
     cell_size: CellSize,
     /// The window dimensions in cells.
-    cells: Size<u32>
+    cells: Size<u32>,
 }
 
 impl MainWindow {
     fn new(window: Window, cell_size: CellSize) -> Result<Self> {
-        
         // this the physical size of the window.
-        let size = window.get_physical_size();
+        let (width, height): (f64, f64) = window.get_physical_size().into();
+        println!("Main Window Size: ({}, {})", width, height);
 
-        let cells = Cells::compute_cells(width, height, cell_size);
+        let cells = Cells::compute_cells(width as f32, height as f32, cell_size);
 
-        let pos = pane::Pos::new(0f32, 0f32);
+        let loc = pane::Loc::new(0f32, 0f32);
 
-        let pane = pane::Pane::new(
+        let pane = Pane::new(
+            PaneKind::Edit,
+            Size::new(width as f32, height as f32),
+            cells,
+            loc,
+        );
 
-        Ok(Self {
+        let mut main_window = Self {
             pane,
             pane_states: HashMap::new(),
             tab_bar: None,
             window,
             cell_size,
-            cells
-        })
+            cells,
+        };
+
+        // @TODO: Abstract this out to a method
+        main_window.pane_states.insert(
+            main_window.pane.id(),
+            PaneState::new(&main_window.pane)
+                .map_err(|e| Error::RenderError(render::Error::FrameBufferError(e)))?,
+        );
+
+        Ok(main_window)
+    }
+
+    pub fn pane(&self) -> &Pane {
+        &self.pane
     }
 
     pub fn window(&self) -> &Window {
         &self.window
     }
 
+    pub fn window_mut(&mut self) -> &mut Window {
+        &mut self.window
+    }
+
     pub fn active_pane(&self) -> &pane::Pane {
         unimplemented!();
     }
 
-
     pub fn active_pane_mut(&mut self) -> &mut pane::Pane {
         unimplemented!();
+    }
+
+    pub fn get_pane_state(&self, id: PaneID) -> Option<&PaneState> {
+        self.pane_states.get(&id)
     }
 }
 
@@ -173,8 +173,9 @@ impl App {
 
         let window = Window::new(
             event_loop,
-            glutin::dpi::LogicalSize::new(config.window.width as f64, config.window.height as f64)
-            ).map_err(|e| Error::CreationError(e))?;
+            glutin::dpi::LogicalSize::new(config.window.width as f64, config.window.height as f64),
+        )
+        .map_err(|e| Error::CreationError(e))?;
 
         // Gl function cannot be loaded until I have a context
         window.init_gl().unwrap();
@@ -186,34 +187,44 @@ impl App {
 
         let mut renderer = render::Renderer::new(&config).map_err(|e| Error::RenderError(e))?;
 
-        let (width, height) = window.get_physical_size();
-
-        let cache = renderer.prepare_font(dpf as f32, &config).map_err(|e| Error::RenderError(e))?;
+        let cache = renderer
+            .prepare_font(dpf as f32, &config)
+            .map_err(|e| Error::RenderError(e))?;
         check!();
 
         let cell_size = Self::compute_cell_size(cache.metrics(), &config.font);
         config.cell_size = cell_size;
-        check!();
+        println!("Cell Size: {:?}", cell_size);
 
-        check!();
-
-        println!("Cell Size: {:?}\nPane Size: {:?}\nPan Pos: {:?}", cell_size, size, pos);
-        check!();
-        
         let main_window = MainWindow::new(window, cell_size)?;
 
-        let engine = editor_core::Engine::new();
+        // if a file to open is not given, then an empty, unnamed file is created.
+        let mut engine = editor_core::Engine::new();
 
-        let app = Self {
-           renderer,
-           engine,
-           main_window,
-           /// @TODO change back to normal
-           mode: EditorMode::Insert,
-           docs: HashMap::new(),
-           cache,
-           config 
+        // let docid = if let Some(filename) = config.get_initial_file() {
+        //  create the file with engine and associate it with the main pane.
+        // }
+        // else {
+
+        let docid = engine
+            .create_empty_document()
+            .map_err(|e| Error::EngineError(e))?;
+
+        // }
+
+        let mut app = Self {
+            renderer,
+            engine,
+            main_window,
+            /// @TODO change back to normal
+            mode: EditorMode::Insert,
+            docs: HashMap::new(),
+            cache,
+            config,
         };
+
+        // what if a default layout is allowed and this not an edit pane. @FUTUREPROOF
+        app.register_document(app.main_window.pane().id(), docid);
 
         app.prepare()?;
 
@@ -221,14 +232,12 @@ impl App {
     }
 
     fn prepare(&self) -> Result<()> {
-
-        let (w, h) = self.main_window.window().get_physical_size();
+        let (w, h): (f64, f64) = self.main_window.window().get_physical_size().into();
 
         println!("Window Size: {} {}", w, h);
+        self.renderer.set_view_port(w as f32, h as f32);
 
-        self.renderer.set_view_port(w, h);
-
-// this module should have any unsafe code
+        // this module should have any unsafe code
         unsafe {
             gl::Enable(gl::BLEND);
             gl::BlendFunc(gl::SRC1_COLOR, gl::ONE_MINUS_SRC1_COLOR);
@@ -247,137 +256,143 @@ impl App {
         CellSize::new(width, height)
     }
 
-    pub fn main_window_cells(width: f32, height: f32, cell_size: CellSize) -> (pane::Size, pane::Loc) {
-        println!("Computing MainWindow Size {} {}", width, height);
-        let cells_x = width / cell_size.x;
-        let cells_y = height / cell_size.y;
-
-        println!("{}/{} {}/{}", width, cell_size.x, height, cell_size.y);
-        println!("{} {}", cells_x, cells_y);
-        println!("{} {}", cells_x * cell_size.x, cells_y * cell_size.y);
-
-        (pane::Size::new(cells_x.ceil() as u32, cells_y.ceil() as u32), pane::Loc::new(0.0, 0.0))
+    /// registers a file to be rendered by an edit pane.
+    pub fn register_document(&mut self, pane: PaneID, doc: editor_core::DocID) {
+        // mayber there should be some other checks here.
+       self.docs
+           .entry(pane)
+           .and_modify(|e| *e = doc)
+           .or_insert(doc); 
     }
-    
-    // rewrite this to handle the different layouts
-    pub fn render_panes(&self) -> Result<()> {
-        
-        // temp
-//        let pane = &self.main_pane;
-//
-//        if !pane.redraw() {
-//            return Ok(());
-//        }
-//
-//        // set the view port and set
-//        pane.ready_render(&self.renderer).map_err(|e| Error::RenderError(e))?;
-//
-//        // binds the framebuffer for rendering
-//        pane.bind_frame_as_write();
-//
-//        self.renderer.clear_frame(None);
-//
-//        // Since the entire frame is to be drawn to, the frame doesnt need to be cleared?.
-//
-//        let id = pane.id;
-//
-//        let document : &editor_core::Document = match self.docs.get(&id) {
-//            Some(doc) => match self.engine.get_document(doc.clone()) {
-//                Some(doc) => doc,
-//                None => panic!("invalid document id"),
-//            },
-//            _ => panic!("Invalid pane/document association")
-//        };
-//
-//        let mut batch = render::Batch::new();
-//        let render = &self.renderer;
-//        let cache = &self.cache;
-//        let cursor = pane.cursor();
-//
-//        render.draw_pane_background(&mut batch, pane);
-//
-//        let lines = document.line_slice(pane.start(), pane.start() + pane.size().y as usize);
-//
-//        let mut cell = (pane.start() as u32, 0 as u32);
-//
-//        for line in lines {
-//            for c in line.chars() {
-//                if c == '\n' {
-//                    continue;
-//                }
-//
-//                if c == ' ' {
-//                    cell.0 += 1;
-//                    continue;
-//                }
-//
-//                if c == '\t' {
-//                    cell.0 += self.config.tabs.tab_width as u32;
-//                    continue;
-//                }
-//
-//                // @TODO: handle the case when c is not in the cache
-//                let glyph = cache.get(c as u32).unwrap();
-//
-//                let text_color = if cell.0 == cursor.pos().x &&
-//                   cell.1 == cursor.pos().y  {
-//                    [0.0, 0.0, 0.0]
-//                }
-//                else {
-//                    [1.0, 1.0, 1.0]
-//                };
-//
-//                let instance = render::InstanceData {
-//                    x: cell.0 as f32,
-//                    y: cell.1 as f32,
-//                    
-//                    // text metrics offsets for the character
-//                    width: glyph.width,
-//                    height: glyph.height,
-//                    offset_x: glyph.bearing_x, // - 1.0,
-//                    offset_y: glyph.bearing_y + 2.0,
-//
-//                    // texture coordinates
-//                    uv_x: glyph.uv_x,
-//                    uv_y: glyph.uv_y,
-//                    uv_dx: glyph.uv_dx,
-//                    uv_dy: glyph.uv_dy,
-//
-//                    tr: text_color[0],
-//                    tg: text_color[1],
-//                    tb: text_color[2],
-//
-//                    br: 0.0,
-//                    bg: 0.0,
-//                    bb: 0.0,
-//                    ba: 1.0,
-//
-//                    texture_id: glyph.atlas as i32,
-//                };
-//
-//                if batch.push(instance) {
-//                    render.draw_batch(&batch);
-//                    batch.clear();
-//                }
-//                cell.0 += 1;
-//            }
-//            cell.0 = 0; 
-//            cell.1 += 1;
-//        }
-//        render.draw_batch(&batch);
 
+    pub fn render_panes(&self) -> Result<()> {
+        let pane = self.main_window.pane();
+        match *pane.kind() {
+            PaneKind::Edit => {
+                if let Some(state) = self.main_window.get_pane_state(pane.id()) {
+                    self.render_pane(pane, state)?
+                } else {
+                    panic!("Unable to find pane state for valid pane");
+                }
+            }
+            PaneKind::Vert(_) | PaneKind::Hor(_) => unimplemented!(),
+        }
         Ok(())
     }
 
+    // rewrite this to handle the different layouts
+    pub fn render_pane(&self, pane: &Pane, state: &PaneState) -> Result<()> {
+        // if the pane doens't need to be redrawn then use the cached pane to blit the screen.
+        if !state.dirty {
+            return Ok(());
+        }
+
+        // Set the view, bind uniforms, and bind the frame buffer.
+        //        pane.ready_render(&self.renderer).map_err(|e| Error::RenderError(e))?;
+        //        pane.bind_frame_as_write();
+        //
+        // Since the entire frame is to be drawn to, the frame doesnt need to be cleared?.
+        // clear the current view, in this case it will be the frame buffer.
+        self.renderer.clear_frame(None);
+
+        // get the document associated to the pane.
+        let document: &editor_core::Document = match self.docs.get(&pane.id()) {
+            Some(doc) => match self.engine.get_document(*doc) {
+                Some(doc) => doc,
+                None => panic!("invalid document id"),
+            },
+            _ => panic!("Invalid pane/document association"),
+        };
+
+        let mut batch = render::Batch::new();
+        let render = &self.renderer;
+        let cache = &self.cache;
+        let cursor = &state.cursor;
+
+        render.draw_pane_background(&mut batch, pane, cursor);
+
+        let lines =
+            document.line_slice(state.start_line, state.start_line + pane.cells().y as usize);
+
+        // this should always be zero? depending on the cutter
+        let mut cell = (state.start_line as u32, 0 as u32);
+
+        for line in lines {
+            for c in line.chars() {
+                if c == '\n' {
+                    continue;
+                }
+
+                if c == ' ' {
+                    cell.0 += 1;
+                    continue;
+                }
+
+                if c == '\t' {
+                    cell.0 += self.config.tabs.tab_width as u32;
+                    continue;
+                }
+
+                // @TODO: handle the case when c is not in the cache
+                let glyph = cache.get(c as u32).unwrap();
+
+                let text_color = if cell.0 == cursor.pos().x && cell.1 == cursor.pos().y {
+                    [0.0, 0.0, 0.0]
+                } else {
+                    [1.0, 1.0, 1.0]
+                };
+
+                let instance = render::InstanceData {
+                    x: cell.0 as f32,
+                    y: cell.1 as f32,
+
+                    // text metrics offsets for the character
+                    width: glyph.width,
+                    height: glyph.height,
+                    offset_x: glyph.bearing_x, // - 1.0,
+                    offset_y: glyph.bearing_y + 2.0,
+
+                    // texture coordinates
+                    uv_x: glyph.uv_x,
+                    uv_y: glyph.uv_y,
+                    uv_dx: glyph.uv_dx,
+                    uv_dy: glyph.uv_dy,
+
+                    tr: text_color[0],
+                    tg: text_color[1],
+                    tb: text_color[2],
+
+                    br: 0.0,
+                    bg: 0.0,
+                    bb: 0.0,
+                    ba: 1.0,
+
+                    texture_id: glyph.atlas as i32,
+                };
+
+                if batch.push(instance) {
+                    render.draw_batch(&batch);
+                    batch.clear();
+                }
+                cell.0 += 1;
+            }
+            cell.0 = 0;
+            cell.1 += 1;
+        }
+
+        render.draw_batch(&batch).map_err(|e| Error::RenderError(e))?;
+
+        Ok(())
+    }
 
     pub fn process_input(&mut self) -> bool {
         let mut running = true;
         let mut events = Vec::new();
 
-        self.main_window.window().poll_events(|event| {
-            events.push(event)
-        });
-        
+        self.main_window
+            .window_mut()
+            .poll_events(|event| events.push(event));
+
         if events.is_empty() {
             return true;
         }
@@ -398,14 +413,14 @@ impl App {
                 WindowEvent::KeyboardInput { ref input, .. } => {
                     println!("{:?}", input);
                     true
-                },
+                }
                 // Maybe using KeyboardInput and processing that would
                 // give a better using experience instead of using ReceivedCharacter
                 WindowEvent::ReceivedCharacter(ch) => {
                     println!("Character Input: {}", *ch);
                     self.process_character_input(*ch);
                     true
-                }, 
+                }
                 WindowEvent::CloseRequested | WindowEvent::Destroyed => false,
                 _ => true,
             },
@@ -436,15 +451,14 @@ impl App {
                     self.mode = EditorMode::CommandInput;
                 }
                 // otherwise the input is ignored.
-            },
+            }
             EditorMode::CommandInput => self.process_command_input(ch),
             EditorMode::Insert => self.process_character_insert(ch),
-            _ => ()
+            _ => (),
         }
     }
 
-    fn process_command_input(&mut self, ch: char) {
-    }
+    fn process_command_input(&mut self, ch: char) {}
 
     fn process_character_insert(&mut self, ch: char) {
         /*
@@ -464,7 +478,7 @@ impl App {
 
     pub fn render_window(&self) {
         /*
-        let pane = &self.main_pane; 
+        let pane = &self.main_pane;
         let (w, h) = self.make_window.window().get_physical_size().into();
 
         unsafe { gl::BindFramebuffer(gl::FRAMEBUFFER, 0); }

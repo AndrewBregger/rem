@@ -1,11 +1,11 @@
-pub mod layout;
 pub mod editpane;
+pub mod layout;
 
-pub use layout::{VerticalLayout, HorizontalLayout};
 pub use editpane::{Cursor, CursorMode};
+pub use layout::{HorizontalLayout, VerticalLayout};
 
-use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
 use crate::size;
+use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
 
 /*
     A pane is rendered by default rendering everything to a framebuffer attached to the pane.
@@ -33,7 +33,7 @@ impl Cells {
         let cells_x = width / cell_size.x;
         let cells_y = height / cell_size.y;
 
-        Self::new(cells_x as u32, cell_y as u32)
+        Self::new(cells_x as u32, cells_y as u32)
     }
 }
 
@@ -41,7 +41,9 @@ impl PaneID {
     fn next() -> Self {
         static TOKEN: AtomicU32 = AtomicU32::new(0);
 
-        Self { 0: TOKEN.fetch_add(1, SeqCst) }
+        Self {
+            0: TOKEN.fetch_add(1, SeqCst),
+        }
     }
 }
 
@@ -56,12 +58,13 @@ pub enum PaneKind {
     Edit,
 }
 
-pub struct Pane  {
+#[derive(Debug, Clone)]
+pub struct Pane {
     /// Identification of this pane.
     id: PaneID,
     /// what type of pane is this { Vertical Layout, HorizontalLayout.
     kind: PaneKind,
-    /// The size of the pane in
+    /// The size of the pane in pixels
     size: Size,
     /// Size of the pane in number of cells.
     // The number of the parents cell are to be used to render this pane.
@@ -79,8 +82,16 @@ impl Pane {
             kind,
             size,
             cells,
-            loc
+            loc,
         }
+    }
+
+    pub fn kind(&self) -> &PaneKind {
+        &self.kind
+    }
+
+    pub fn id(&self) -> PaneID {
+        self.id
     }
 
     pub fn size(&self) -> &Size {
@@ -106,10 +117,9 @@ impl Pane {
         self.size = size;
         self.cells = cells;
         self.loc = loc;
-        
+
         self.update_children(cell_size);
     }
 
-    pub fn update_children(&mut self, cell_size: CellSize) {
-    }
+    pub fn update_children(&mut self, cell_size: CellSize) {}
 }

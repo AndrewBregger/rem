@@ -1,11 +1,11 @@
 use gl::types::*;
+use nalgebra_glm as glm;
+use std::convert::AsRef;
 use std::ffi::CString;
+use std::fs;
+use std::path::PathBuf;
 use std::ptr;
 use std::str;
-use std::path::PathBuf;
-use std::fs;
-use std::convert::AsRef;
-use nalgebra_glm as glm;
 
 use crate::pane::CellSize;
 
@@ -13,8 +13,13 @@ use super::Atlas;
 use super::Result;
 
 pub fn load_file<P: AsRef<std::path::Path>>(filename: P) -> String {
-    let content = fs::read_to_string(&filename)
-            .expect(format!("Failed to load file: '{}'", filename.as_ref().to_str().unwrap()).as_str());
+    let content = fs::read_to_string(&filename).expect(
+        format!(
+            "Failed to load file: '{}'",
+            filename.as_ref().to_str().unwrap()
+        )
+        .as_str(),
+    );
     content
 }
 
@@ -31,8 +36,7 @@ pub fn compile_shader(src: &str, ty: GLenum) -> GLuint {
 
         if gl::GetShaderiv::is_loaded() {
             gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
-        }
-        else {
+        } else {
             println!("GetShaderiv is not loaded");
         }
         if status != (gl::TRUE as GLint) {
@@ -147,11 +151,15 @@ impl TextShader {
 
         let program = link_shader(vs, fs);
 
-        
-        let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr()) };
-        let atlas_loc = unsafe { gl::GetUniformLocation(program, CString::new("atlas").unwrap().as_ptr()) };
-        let cell_loc = unsafe { gl::GetUniformLocation(program, CString::new("cell_size").unwrap().as_ptr()) };
-        let pass_loc = unsafe { gl::GetUniformLocation(program, CString::new("bg_pass").unwrap().as_ptr()) };
+        let per_loc = unsafe {
+            gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr())
+        };
+        let atlas_loc =
+            unsafe { gl::GetUniformLocation(program, CString::new("atlas").unwrap().as_ptr()) };
+        let cell_loc =
+            unsafe { gl::GetUniformLocation(program, CString::new("cell_size").unwrap().as_ptr()) };
+        let pass_loc =
+            unsafe { gl::GetUniformLocation(program, CString::new("bg_pass").unwrap().as_ptr()) };
 
         Ok(Self {
             program,
@@ -179,7 +187,9 @@ impl TextShader {
     }
 
     pub fn set_background_pass(&self, pass: i32) {
-        unsafe { gl::Uniform1i(self.pass_loc, pass); }
+        unsafe {
+            gl::Uniform1i(self.pass_loc, pass);
+        }
     }
 
     pub fn activate(&self) {
@@ -201,9 +211,11 @@ impl RectShader {
 
         let program = link_shader(vs, fs);
 
-        
-        let per_loc = unsafe { gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr()) };
-        let cell_loc = unsafe { gl::GetUniformLocation(program, CString::new("cell_size").unwrap().as_ptr()) };
+        let per_loc = unsafe {
+            gl::GetUniformLocation(program, CString::new("projection").unwrap().as_ptr())
+        };
+        let cell_loc =
+            unsafe { gl::GetUniformLocation(program, CString::new("cell_size").unwrap().as_ptr()) };
 
         Ok(Self {
             program,

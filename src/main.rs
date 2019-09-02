@@ -1,26 +1,27 @@
 extern crate freetype as ft;
 extern crate gl;
-extern crate ropey;
 extern crate glutin;
 extern crate image;
 extern crate nalgebra_glm as glm;
+extern crate ropey;
 
 mod font;
-#[macro_use] mod render;
+#[macro_use]
+mod render;
 
-mod pane;
 mod config;
-mod editor_core;
-mod window;
 mod editor;
+mod editor_core;
+mod pane;
 mod size;
-use std::result::Result;
-use std::ptr;
-use std::str;
+mod window;
+use editor::App;
 use font::Rasterizer;
 use gl::types::*;
 use std::path::PathBuf;
-use editor::App;
+use std::ptr;
+use std::result::Result;
+use std::str;
 
 static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
 static RECT_INDEX_DATA: [u32; 4] = [0, 1, 2, 3];
@@ -48,8 +49,15 @@ macro_rules! check {
     }};
 }
 
-extern "system" fn callback(source: GLenum, gltype: GLenum, id: GLuint, severity: GLenum,
-                            length: GLsizei, message: *const GLchar, userParam: *mut std::ffi::c_void) {
+extern "system" fn callback(
+    source: GLenum,
+    gltype: GLenum,
+    id: GLuint,
+    severity: GLenum,
+    length: GLsizei,
+    message: *const GLchar,
+    userParam: *mut std::ffi::c_void,
+) {
     let sor = match source {
         gl::DEBUG_SOURCE_API => "API",
         gl::DEBUG_SOURCE_WINDOW_SYSTEM => "WINDOW SYSTEM",
@@ -78,12 +86,19 @@ extern "system" fn callback(source: GLenum, gltype: GLenum, id: GLuint, severity
         gl::DEBUG_SEVERITY_NOTIFICATION => "NOTICE",
         _ => "UNKNOWN",
     };
-    
+
     let message = unsafe { std::slice::from_raw_parts(message as *const u8, length as usize) };
-    println!("{}: {} of {} severity, raised from {}: {}", id, ty, ser, sor, str::from_utf8(message).unwrap());
+    println!(
+        "{}: {} of {} severity, raised from {}: {}",
+        id,
+        ty,
+        ser,
+        sor,
+        str::from_utf8(message).unwrap()
+    );
 }
 
-fn main() -> Result<(), editor::Error>{
+fn main() -> Result<(), editor::Error> {
     let config = config::Config::default();
 
     let mut app = App::new(config)?;
@@ -125,7 +140,7 @@ fn main() -> Result<(), editor::Error>{
 //let instance = render::InstanceData {
 //    x: cell.0 as f32,
 //    y: cell.1 as f32,
-//    
+//
 //    // text metrics offsets for the character
 //    width: glyph.width,
 //    height: glyph.height,

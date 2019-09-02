@@ -1,25 +1,25 @@
 use crate::ropey;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
 use std::io;
-use std::io::{BufReader};
+use std::io::BufReader;
 use std::path;
-use std::borrow::Cow;
 
-use ropey::Rope;
 use ropey::iter::Bytes;
+use ropey::Rope;
 
 use std::sync::atomic::{AtomicU16, Ordering::SeqCst};
 
 /// Engine Errors
 #[derive(Debug)]
 pub enum Error {
-   InsertError,
-   DeleteError,
-   FileExists,
-   InvalidDocID,
-   MissingPath,
-   FileError(io::Error),
+    InsertError,
+    DeleteError,
+    FileExists,
+    InvalidDocID,
+    MissingPath,
+    FileError(io::Error),
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -40,7 +40,6 @@ enum OperationKind {
     /// Invalid operation
     Invalid,
 
-
     // future operations
     CopySelection,
     DeleteSelection,
@@ -48,7 +47,7 @@ enum OperationKind {
 
 /// An operation that is being performed on the given file.
 #[derive(Debug, Clone)]
-pub struct Operation  {
+pub struct Operation {
     doc: DocID,
     kind: OperationKind,
 }
@@ -90,201 +89,215 @@ impl Operation {
     }
 }
 
-
-
-
 pub struct Engine {
-   /// List of all open documents.
-   docs: Vec<Document>,
+    /// List of all open documents.
+    docs: Vec<Document>,
 
-   /// A acciciation of panes to indices in docs vector.
-   document_map: HashMap<DocID, usize>,
+    /// A acciciation of panes to indices in docs vector.
+    document_map: HashMap<DocID, usize>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Document {
-   /// file of the document
-   path: Option<String>,
-   /// string representation of the document
-   content: ropey::Rope,
-   /// unique id
-   id: DocID
+    /// file of the document
+    path: Option<String>,
+    /// string representation of the document
+    content: ropey::Rope,
+    /// unique id
+    id: DocID,
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct DocID(u16);
 
 impl DocID {
-   fn next() -> Self {
-      static TOKEN: AtomicU16 = AtomicU16::new(0);
+    fn next() -> Self {
+        static TOKEN: AtomicU16 = AtomicU16::new(0);
 
-      Self { 0: TOKEN.fetch_add(0, SeqCst) }
-   }
+        Self {
+            0: TOKEN.fetch_add(0, SeqCst),
+        }
+    }
 }
 
 impl Document {
-   /// creates a document that doesnt have a name
-   /// but can be written on. I.G. a scratch buffer
-   /// If saved a filename will be requested.
-   pub fn name_less() -> Result<Self> {
-      Ok(Self {
-         path: None,
-         content: Rope::new(),
-         id: DocID::next(),
-      })
-   }
+    /// creates a document that doesnt have a name
+    /// but can be written on. I.G. a scratch buffer
+    /// If saved a filename will be requested.
+    pub fn empty(path: Option<&str>) -> Result<Self> {
+        Ok(Self {
+            path: {
+                // @NOTE: maybe this path should be checked?
+                match path {
+                    Some(s) => Some(s.to_string()),
+                    None => None,
+                }
+            },
+            content: Rope::new(),
+            id: DocID::next(),
+        })
+    }
 
-   pub fn from_path(path: &str) -> Result<Self> {
-      let path = path::Path::new(path);
-      let id = DocID::next();
+    pub fn from_path(path: &str) -> Result<Self> {
+        let path = path::Path::new(path);
+        let id = DocID::next();
 
-      let error_map = |e| { Error::FileError(e) };
+        let error_map = |e| Error::FileError(e);
 
-      let content = if path.exists() {
-         Rope::from_reader(
-            BufReader::new(
-                  fs::File::open(path).map_err(error_map)?
-               )
-            ).map_err(error_map)?
-      }
-      else {
-         Rope::new()
-      };
+        let content = if path.exists() {
+            Rope::from_reader(BufReader::new(fs::File::open(path).map_err(error_map)?))
+                .map_err(error_map)?
+        } else {
+            Rope::new()
+        };
 
-      println!("Num Lines: {}", content.len_lines());
-      println!("Size: {}", content.len_bytes());
+        println!("Num Lines: {}", content.len_lines());
+        println!("Size: {}", content.len_bytes());
 
-      Ok(
-         Self {
+        Ok(Self {
             // @TODO: handle error from both canonicalizing and string unwrapping.
-            path: Some(path.canonicalize().unwrap().as_path().to_str().unwrap().to_string()),
+            path: Some(
+                path.canonicalize()
+                    .unwrap()
+                    .as_path()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            ),
             content,
             id,
-         }
-      )
-   }
+        })
+    }
 
-   pub fn id(&self) -> DocID {
-      self.id
-   }
+    pub fn id(&self) -> DocID {
+        self.id
+    }
 
-   pub fn as_str<'a>(&'a self) -> Cow<str> {
-      self.content.clone().into()
-   }
-   
-   pub fn line_slice(&self, start: usize, end: usize) -> Vec<ropey::RopeSlice> {
-      let first = self.content.lines().skip(start);
-      first.take(end).collect()
-   }
+    pub fn as_str<'a>(&'a self) -> Cow<str> {
+        self.content.clone().into()
+    }
 
-   pub fn write(&self) -> Result<()> {
-       // this will error if the write inself fails or if there isnt a path associated with the
-       // document.
-       Ok(())
-   }
+    pub fn line_slice(&self, start: usize, end: usize) -> Vec<ropey::RopeSlice> {
+        let first = self.content.lines().skip(start);
+        first.take(end).collect()
+    }
 
-   pub fn insert(&mut self, index: u64, ch: char) -> Result<()> {
-       println!("Character '{}' inserted at {}", ch, index);
-       self.content.insert_char(index as usize, ch);
-       Ok(())
-   }
+    pub fn write(&self) -> Result<()> {
+        // this will error if the write inself fails or if there isnt a path associated with the
+        // document.
+        Ok(())
+    }
 
-   pub fn delete(&mut self, index: u64) -> Result<()> {
-       println!("Deleting character at index {}", index);
-       Ok(())
-   }
+    pub fn insert(&mut self, index: u64, ch: char) -> Result<()> {
+        println!("Character '{}' inserted at {}", ch, index);
+        self.content.insert_char(index as usize, ch);
+        Ok(())
+    }
 
-   pub fn paste(&mut self, index: u64, data: &str) -> Result<()> {
-       println!("Pasting {} at index {}", data, index);
-       Ok(())
-   }
+    pub fn delete(&mut self, index: u64) -> Result<()> {
+        println!("Deleting character at index {}", index);
+        Ok(())
+    }
 
-   pub fn cursor_index(&self, first_line: usize, x: u32, y: u32) -> u64 {
-       let first_line = first_line + y as usize;
-       let line_index = self.content.line_to_char(first_line);
-       line_index as u64 + x as u64
-   }
+    pub fn paste(&mut self, index: u64, data: &str) -> Result<()> {
+        println!("Pasting {} at index {}", data, index);
+        Ok(())
+    }
+
+    pub fn cursor_index(&self, first_line: usize, x: u32, y: u32) -> u64 {
+        let first_line = first_line + y as usize;
+        let line_index = self.content.line_to_char(first_line);
+        line_index as u64 + x as u64
+    }
 }
 
-
 impl Engine {
-   pub fn new() -> Self {
-      Self {
-         docs: Vec::new(),
-         document_map: HashMap::new(),
-      }
-   }
+    pub fn new() -> Self {
+        Self {
+            docs: Vec::new(),
+            document_map: HashMap::new(),
+        }
+    }
 
-   /// Attempts to open a given file on a pane.
-   /// Handles the pane/document association.
-   /// pane: The ID of the pane that is opening this file
-   /// path: Path of the file attempting to be open.
-   pub fn open_document(&mut self, path: &str) -> Result<DocID> {
-      let (doc, index) = self.open_file(path)?;
+    /// Attempts to open a given file on a pane.
+    /// Handles the pane/document association.
+    /// pane: The ID of the pane that is opening this file
+    /// path: Path of the file attempting to be open.
+    pub fn open_document(&mut self, path: &str) -> Result<DocID> {
+        let doc = self.open_file(path)?;
+        self.register_document(&doc)
+    }
 
-      self.document_map.entry(doc)
-         .and_modify(|e| { *e = index } )
-         .or_insert(index);
+    pub fn register_document(&mut self, document: &Document) -> Result<DocID> {
+        // This is a copy of the entire document. This isn't good.
+        let id = document.id();
+        self.docs.push(document.clone());
+        let index = self.docs.len() - 1;
 
-      Ok(doc)
-   }
+        self.document_map
+            .entry(id)
+            .and_modify(|e| *e = index)
+            .or_insert(index);
 
-   /// Opens the file and retuns the index in docs.
-   fn open_file(&mut self, path: &str) -> Result<(DocID, usize)> {
-      // @TODO: Implement
-      let index = self.docs.len();
-      self.docs.push(Document::from_path(path)?);
-      // the unwrap is always ok because of the above line.
-      Ok((self.docs.last().unwrap().id(), index as usize))
-   }
+        Ok(document.id())
+    }
 
-   pub fn close_file(&mut self, doc: DocID) -> Result<()> {
-       unimplemented!();
-   }
+    /// Opens the file and retuns the index in docs.
+    fn open_file(&mut self, path: &str) -> Result<Document> {
+        Ok(Document::from_path(path)?)
+    }
 
-   pub fn get_document(&self, doc: DocID) -> Option<&Document> {
-      match self.document_map.get(&doc) {
-         Some(e) => Some(&self.docs[*e]),
-         _ => None
-      }
-   }
+    pub fn close_file(&mut self, doc: DocID) -> Result<()> {
+        unimplemented!();
+    }
 
-   pub fn get_mut_document(&mut self, doc: DocID) -> Option<&mut Document> {
-      match self.document_map.get(&doc) {
-         Some(e) => Some(&mut self.docs[*e]),
-         _ => None
-      }
-   }
+    pub fn get_document(&self, doc: DocID) -> Option<&Document> {
+        match self.document_map.get(&doc) {
+            Some(e) => Some(&self.docs[*e]),
+            _ => None,
+        }
+    }
 
-   /// Executes a given operation on document of pane.
-   /// pane: The identifier to know which file is being operated on.
-   /// op: The operation being executed. See Operation for more detail.
-   pub fn execute_on(&mut self, op: Operation) -> Result<()> {
-       let document = self.get_mut_document(op.doc).ok_or(Error::InvalidDocID)?;
+    pub fn get_mut_document(&mut self, doc: DocID) -> Option<&mut Document> {
+        match self.document_map.get(&doc) {
+            Some(e) => Some(&mut self.docs[*e]),
+            _ => None,
+        }
+    }
 
-       println!("Operation {:?}", op);
+    pub fn create_empty_document(&mut self) -> Result<DocID> {
+        let document = Document::empty(None)?;
+        self.register_document(&document)?;
+        Ok(document.id())
+    }
 
-       match op.kind {
-           OperationKind::Insert(start_index, x, y, ch) => {
-               let index = document.cursor_index(start_index, x, y);
-               document.insert(index, ch)?
-           },
-           OperationKind::Delete(start_index, x, y) => {
-               let index = document.cursor_index(start_index, x, y);
-               document.delete(index)?
-           },
-           OperationKind::Paste(start_index, x, y, data) => {
-               let index = document.cursor_index(start_index, x, y);
-               document.paste(index, data.as_str())?
-           },
-           OperationKind::WriteFile => {
-               document.write()?
-           },
-           OperationKind::CloseFile => self.close_file(op.doc)?,
-           OperationKind::Invalid => panic!("Attempting to execute invalid operatiion"),
-           _ => unimplemented!(),
-       }
+    /// Executes a given operation on document of pane.
+    /// pane: The identifier to know which file is being operated on.
+    /// op: The operation being executed. See Operation for more detail.
+    pub fn execute_on(&mut self, op: Operation) -> Result<()> {
+        let document = self.get_mut_document(op.doc).ok_or(Error::InvalidDocID)?;
 
-       Ok(())
-   }
+        println!("Operation {:?}", op);
+
+        match op.kind {
+            OperationKind::Insert(start_index, x, y, ch) => {
+                let index = document.cursor_index(start_index, x, y);
+                document.insert(index, ch)?
+            }
+            OperationKind::Delete(start_index, x, y) => {
+                let index = document.cursor_index(start_index, x, y);
+                document.delete(index)?
+            }
+            OperationKind::Paste(start_index, x, y, data) => {
+                let index = document.cursor_index(start_index, x, y);
+                document.paste(index, data.as_str())?
+            }
+            OperationKind::WriteFile => document.write()?,
+            OperationKind::CloseFile => self.close_file(op.doc)?,
+            OperationKind::Invalid => panic!("Attempting to execute invalid operatiion"),
+            _ => unimplemented!(),
+        }
+
+        Ok(())
+    }
 }

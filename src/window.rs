@@ -1,18 +1,16 @@
-
-
 // Needed glutin modules and structures
 pub use glutin::{
-    DeviceEvent, ElementState, Event, EventsLoop, NotCurrent, PossiblyCurrent,
-    VirtualKeyCode, WindowEvent, WindowedContext
+    DeviceEvent, ElementState, Event, EventsLoop, NotCurrent, PossiblyCurrent, VirtualKeyCode,
+    WindowEvent, WindowedContext,
 };
 
 // needed for error handling
 pub use glutin::{ContextError, CreationError};
 
 // needed for size
+use crate::size;
 use glutin::dpi::{LogicalSize, PhysicalSize};
 use std::convert::Into;
-use crate::size;
 
 #[derive(Debug)]
 pub enum Error {
@@ -81,7 +79,7 @@ impl Window {
     pub fn dpi_factor(&self) -> f64 {
         self.window().get_hidpi_factor()
     }
-    
+
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
         self.window().get_inner_size()
     }
@@ -91,8 +89,7 @@ impl Window {
             let dpi_factor = self.dpi_factor();
 
             size.to_physical(dpi_factor)
-        }
-        else {
+        } else {
             panic!("Attempting to get size of invalid window");
         }
     }
@@ -110,7 +107,7 @@ impl Window {
         event_loop: &EventsLoop,
         size: LogicalSize,
     ) -> Result<WindowedContext<PossiblyCurrent>> {
-        use glutin::{WindowBuilder, ContextBuilder};
+        use glutin::{ContextBuilder, WindowBuilder};
 
         let window = WindowBuilder::new()
             .with_title("REM Editor")
@@ -118,8 +115,8 @@ impl Window {
             .with_resizable(true)
             // for now
             .with_decorations(true);
-            // test right now
-            // .with_transparency(true);
+        // test right now
+        // .with_transparency(true);
         // @TODO: Window icon.
         // .window_window_icon(???)
 
@@ -149,7 +146,7 @@ impl Window {
         size: LogicalSize,
     ) -> Result<WindowedContext<PossiblyCurrent>> {
         use super::glutin::os::macos::WindowBuilderExt;
-        use super::glutin::{WindowBuilder, ContextBuilder};
+        use super::glutin::{ContextBuilder, WindowBuilder};
 
         let windowbuilder = WindowBuilder::new()
             .with_title("REM Editor")
@@ -157,8 +154,8 @@ impl Window {
             .with_resizable(true)
             // for now
             .with_decorations(true);
-            // test right now
-            // .with_transparency(true);
+        // test right now
+        // .with_transparency(true);
 
         let context = ContextBuilder::new()
             // these should be checked or passed an not assumed. {
@@ -187,7 +184,7 @@ impl Window {
     pub fn swap_buffers(&self) {
         self.context.swap_buffers().unwrap();
     }
-    
+
     // this should never fail.
     pub fn init_gl(&self) -> Result<()> {
         gl::load_with(|s| self.context.get_proc_address(s) as *const _);

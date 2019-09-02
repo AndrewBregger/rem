@@ -1,12 +1,12 @@
-pub mod render;
 pub mod caches;
 pub mod framebuffer;
+pub mod render;
 
-#[macro_use] pub use render::*;
+#[macro_use]
+pub use render::*;
 pub use caches::*;
 
 pub(crate) mod shader;
-
 
 use crate::font;
 use crate::font::GlyphKey;
@@ -17,8 +17,8 @@ pub enum Error {
     AtlasFull,
     RenderError(String),
     AtlasError(String),
-    CacheMissChar(GlyphKey)
-
+    CacheMissChar(GlyphKey),
+    FrameBufferError(framebuffer::Error),
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;

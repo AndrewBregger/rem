@@ -1,9 +1,8 @@
-use glm::Vec2;
 use super::font::{FontDesc, FontSize};
 use super::pane::CellSize;
-use std::default::Default;
 use crate::pane;
-
+use glm::Vec2;
+use std::default::Default;
 
 #[derive(Debug, Clone)]
 pub struct Font {
@@ -55,7 +54,6 @@ pub struct Config {
     pub cell_size: CellSize,
 }
 
-
 // implement config file to be loaded.
 
 impl Default for Config {
@@ -67,7 +65,7 @@ impl Default for Config {
                     path: std::path::Path::new("dev/DroidSansMono.ttf").to_path_buf(),
                 },
                 size: FontSize { pixel_size: 20.0 },
-                offset: Vec2::new(0.0, 0.0)
+                offset: Vec2::new(0.0, 0.0),
             },
             colors: Colors {
                 bg: [0.0, 0.0, 0.0],
@@ -77,12 +75,8 @@ impl Default for Config {
                 width: 1024f32,
                 height: 864f32,
             },
-            tabs: Tab {
-                tab_width: 2,
-            },
-            atlas: Atlas {
-                size: 1024f32,
-            },
+            tabs: Tab { tab_width: 2 },
+            atlas: Atlas { size: 1024f32 },
             cursor: Cursor {
                 insert: pane::CursorMode::Line,
                 normal: pane::CursorMode::Box,
