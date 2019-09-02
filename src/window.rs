@@ -10,7 +10,7 @@ pub use glutin::{
 pub use glutin::{ContextError, CreationError};
 
 // needed for size
-use glutin::dpi::LogicalSize;
+use glutin::dpi::{LogicalSize, PhysicalSize};
 use std::convert::Into;
 use crate::size;
 

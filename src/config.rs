@@ -1,7 +1,9 @@
 use glm::Vec2;
 use super::font::{FontDesc, FontSize};
+use super::pane::CellSize;
 use std::default::Default;
 use crate::pane;
+
 
 #[derive(Debug, Clone)]
 pub struct Font {
@@ -50,6 +52,7 @@ pub struct Config {
     pub tabs: Tab,
     pub atlas: Atlas,
     pub cursor: Cursor,
+    pub cell_size: CellSize,
 }
 
 
@@ -83,7 +86,8 @@ impl Default for Config {
             cursor: Cursor {
                 insert: pane::CursorMode::Line,
                 normal: pane::CursorMode::Box,
-            }
+            },
+            cell_size: CellSize::new(0f32, 0f32),
         }
     }
 }

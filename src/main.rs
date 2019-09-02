@@ -7,29 +7,19 @@ extern crate nalgebra_glm as glm;
 
 mod font;
 #[macro_use] mod render;
+
 mod pane;
 mod config;
 mod editor_core;
 mod window;
 mod editor;
 mod size;
-
-use std::sync::mpsc;
-use std::thread::Builder;
 use std::result::Result;
-use std::mem;
 use std::ptr;
 use std::str;
-
-
-use editor_core::Document;
 use font::Rasterizer;
-use render::{GlyphCache, Renderer};
-use std::collections::HashMap;
 use gl::types::*;
 use std::path::PathBuf;
-use glutin::*;
-
 use editor::App;
 
 static INDEX_DATA: [u32; 6] = [0, 1, 2, 0, 2, 3];
@@ -103,20 +93,19 @@ fn main() -> Result<(), editor::Error>{
         gl::DebugMessageCallback(callback, ptr::null());
     }
 
-    app.test_doc();
-
     let mut running = true;
     let mut _iter = 0;
+
     while app.process_input() {
         app.render_panes()?;
-
-        app.pane_rendered(); 
 
         app.render_window();
 
         app.swap_buffers();
         //iter += 1;
     }
+
+    // app.clean();
     Ok(())
 }
 

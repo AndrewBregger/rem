@@ -4,7 +4,7 @@ use std::collections::HashMap;
 // editor area
 use crate::pane;
 use pane::CellSize;
-use pane::{Pane, EditPane};
+use pane::{Pane, PaneID};
 
 // editing engine
 use crate::editor_core;
@@ -14,6 +14,7 @@ use crate::config;
 use crate::window::{Window, WindowSize};
 // font managment(for now)
 use crate::font;
+use super::size::Size;
 // key bindings
 // use crate::bindings;
 
@@ -52,21 +53,19 @@ struct PaneState {
 }
 
 impl PaneState {
-    fn new(pane: &pane::Pane) -> Result<Self, render::framebuffer::Error>{
+    fn new(pane: &pane::Pane) -> ::std::result::Result<Self, render::framebuffer::Error>{
         let size = pane.pane_size_in_pixels();
 
         Ok(Self {
             pane: pane.id(),
-            cursor: pane::Cursor::new(pane.id(), pane::CusorMode::Normal),
+            cursor: pane::Cursor::new(pane.id(), pane::CursorMode::Box),
             active: false,
             frame: render::framebuffer::FrameBuffer::new(size.into())?
         })
     }
 }
 
-pub struct TabBar {
-
-}
+pub struct TabBar;
 
 
 
@@ -90,12 +89,16 @@ struct MainWindow {
 }
 
 impl MainWindow {
-    fn new(window: Window, cell_size: CellSize, cells: Size<u32>) -> Result<Self> {
-
+    fn new(window: Window, cell_size: CellSize) -> Result<Self> {
+        
+        // this the physical size of the window.
         let size = window.get_physical_size();
-    
+
+        let cells = Cells::compute_cells(width, height, cell_size);
+
+        let pos = pane::Pos::new(0f32, 0f32);
+
         let pane = pane::Pane::new(
-            );
 
         Ok(Self {
             pane,
@@ -112,9 +115,12 @@ impl MainWindow {
     }
 
     pub fn active_pane(&self) -> &pane::Pane {
+        unimplemented!();
     }
 
+
     pub fn active_pane_mut(&mut self) -> &mut pane::Pane {
+        unimplemented!();
     }
 }
 
@@ -125,7 +131,7 @@ pub struct App {
     ///  main editing engine, owns the open documents
     engine: editor_core::Engine,
     /// main windows pane
-    main_window: MainWindow<'_>,
+    main_window: MainWindow,
     /// the current mode of the editor.
     mode: EditorMode,
     /// pane and document association.
@@ -160,7 +166,7 @@ macro_rules! check {
 }
 
 impl App {
-    pub fn new(config: config::Config) -> Result<Self> {
+    pub fn new(mut config: config::Config) -> Result<Self> {
         let event_loop = glutin::EventsLoop::new();
 
         println!("{:?}", config);
@@ -180,29 +186,28 @@ impl App {
 
         let mut renderer = render::Renderer::new(&config).map_err(|e| Error::RenderError(e))?;
 
-        let (width, height = window.get_physical_size();
+        let (width, height) = window.get_physical_size();
 
         let cache = renderer.prepare_font(dpf as f32, &config).map_err(|e| Error::RenderError(e))?;
         check!();
 
         let cell_size = Self::compute_cell_size(cache.metrics(), &config.font);
+        config.cell_size = cell_size;
         check!();
 
-        let (size, pos) = Self::compute_main_pane(width, height, cell_size);
         check!();
 
         println!("Cell Size: {:?}\nPane Size: {:?}\nPan Pos: {:?}", cell_size, size, pos);
         check!();
         
-        let main_window = MainWindow<'_>
+        let main_window = MainWindow::new(window, cell_size)?;
 
         let engine = editor_core::Engine::new();
 
         let app = Self {
-           window,
            renderer,
            engine,
-           main_pane,
+           main_window,
            /// @TODO change back to normal
            mode: EditorMode::Insert,
            docs: HashMap::new(),
@@ -242,23 +247,18 @@ impl App {
         CellSize::new(width, height)
     }
 
-    pub fn compute_main_pane(width: f32, height: f32, cell_size: CellSize) -> (pane::Size, pane::Loc) {
+    pub fn main_window_cells(width: f32, height: f32, cell_size: CellSize) -> (pane::Size, pane::Loc) {
+        println!("Computing MainWindow Size {} {}", width, height);
         let cells_x = width / cell_size.x;
         let cells_y = height / cell_size.y;
 
         println!("{}/{} {}/{}", width, cell_size.x, height, cell_size.y);
         println!("{} {}", cells_x, cells_y);
         println!("{} {}", cells_x * cell_size.x, cells_y * cell_size.y);
+
         (pane::Size::new(cells_x.ceil() as u32, cells_y.ceil() as u32), pane::Loc::new(0.0, 0.0))
     }
     
-    /// TEMPORARY function to load a file into the main pane until it is actually implemented.
-    pub fn test_doc(&mut self) {
-        let doc = self.engine.open_document("src/main.rs").unwrap();
-        self.docs.insert(self.main_pane.id, doc);
-    }
-
-    // does this need to mut the state?
     // rewrite this to handle the different layouts
     pub fn render_panes(&self) -> Result<()> {
         
@@ -374,7 +374,7 @@ impl App {
         let mut running = true;
         let mut events = Vec::new();
 
-        self.window.poll_events(|event| {
+        self.main_window.window().poll_events(|event| {
             events.push(event)
         });
         
@@ -447,7 +447,8 @@ impl App {
     }
 
     fn process_character_insert(&mut self, ch: char) {
-        let pane = self.main_pane.active_pane()
+        /*
+        let pane = self.main_window.active_pane_mut();
         let start_index = pane.start();
         let pane_id = pane.id;
 
@@ -458,9 +459,11 @@ impl App {
         else {
             panic!("Corrupted pane and document association");
         }
+        */
     }
 
     pub fn render_window(&self) {
+        /*
         let pane = &self.main_pane; 
         let (w, h) = self.make_window.window().get_physical_size().into();
 
@@ -469,9 +472,10 @@ impl App {
         self.renderer.clear_frame(None);
         self.renderer.set_view_port(w as f32, h as f32);
         self.renderer.draw_rendered_pane(&self.window, pane);
+        */
     }
 
     pub fn swap_buffers(&self) {
-        self.window.swap_buffers()
+        self.main_window.window().swap_buffers()
     }
 }
