@@ -41,6 +41,10 @@ impl Cursor {
     pub fn pos(&self) -> &Position {
         &self.pos
     }
+
+    pub fn advance(&mut self, dist: u32) {
+        self.pos.x += dist;
+    }
 }
 
 /*

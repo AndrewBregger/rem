@@ -1,7 +1,18 @@
 Primary:
+Expand the functionality of the front end (new line, tabs, backspace,
+etc)
+
 Make sure the panes are rendered properly onto the screen.
-They are currently being rendered incorrectly. It seems the
-panes framebuffer is larger then the actual screen (validate).
+
+How to handle document indexing when the cursor coordinates are not the
+same as where it would be in the document. This would happen when a tab
+is inserted that isn't replaced by spaces but the cursor is still offset
+by multiple character space. If it is left one to one, then there could
+be a document insertion out of bounds.
+    - The conversion function that takes the cursor coordinates and view
+      offsets and computes the document index could take that offset
+      into consideration. IE. if a tab is seen, then count that as two
+      characters instead of 1.
 
 
 Next:
@@ -9,6 +20,8 @@ Look into font-kit instead of writing my own complete font rasterizer.
 
 Open Questions:
 Where should the text color be stored?
+
+
 How should the rendering handle higher screen resolutions: dpi_factor >
 1?
 Re-evaluate how inputs are being handled.
@@ -25,14 +38,11 @@ Window abstraction
 Basic text input, cannot delete yet.
 Cached pane rendering.
 
-Render Grid:
-A grid is to be used to render text at the beginning because
-handling mono-space fonts are simpiler and have less things to worry
-about when placing the characters on the screen.
-For Mono-space, each character will only need to be formatted within its
-grid cell, not the entire line.
+They are currently being rendered incorrectly. It seems the
+panes framebuffer is larger then the actual screen (validate).
+This has been corrected by using only physical sizes for the pane sizes
+when rendering instead of recomputing from the cells and cell size.
 
-I have decided to do traditional text rendering.
 
 
 Vsync delays the event loop process from closing in all platforms.

@@ -16,6 +16,7 @@ use crate::window::{Window, WindowSize};
 // font managment(for now)
 use super::size::Size;
 use crate::font;
+use std::convert::{From, Into};
 // key bindings
 // use crate::bindings;
 
@@ -55,6 +56,8 @@ struct MainWindow {
     pane_states: HashMap<PaneID, PaneState>,
     /// this is only shown when there are
     tab_bar: Option<TabBar>,
+    /// a reference to all of the edit panes.
+    // panes: Vec<pane::Pane>,
     /// the window the main window is associated with.
     window: Window,
     /// The size of a cell
@@ -96,11 +99,17 @@ impl MainWindow {
                 .map_err(|e| Error::RenderError(render::Error::FrameBufferError(e)))?,
         );
 
+        main_window.set_pane_active(main_window.pane.id());
+
         Ok(main_window)
     }
 
     pub fn pane(&self) -> &Pane {
         &self.pane
+    }
+
+    pub fn pane_mut(&mut self) -> &mut Pane {
+        &mut self.pane
     }
 
     pub fn window(&self) -> &Window {
@@ -112,16 +121,83 @@ impl MainWindow {
     }
 
     pub fn active_pane(&self) -> &pane::Pane {
-        unimplemented!();
+        if let Some(id) = self.find_active_pane_id() {
+            Self::find_pane_by_id(self.pane(), id)
+        }
+        else {
+            unreachable!();
+        }
     }
 
     pub fn active_pane_mut(&mut self) -> &mut pane::Pane {
-        unimplemented!();
+        if let Some(id) = self.find_active_pane_id() {
+            Self::find_pane_by_id_mut(self.pane_mut(), id)
+        }
+        else {
+            unreachable!();
+        }
+    }
+
+    fn find_pane_by_id(pane: &pane::Pane, id: PaneID) -> &pane::Pane {
+        match *pane.kind() {
+            PaneKind::Edit => {
+                if pane.id() == id {
+                    pane
+                }
+                else {
+                    panic!(format!("Unable to find pane of given id: {:?}", id));
+                }
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    fn find_pane_by_id_mut(pane: &mut pane::Pane, id: PaneID) -> &mut pane::Pane {
+        match *pane.kind() {
+            PaneKind::Edit => {
+                if pane.id() == id {
+                    pane
+                }
+                else {
+                    panic!(format!("Unable to find pane of given id: {:?}", id));
+                }
+            }
+            _ => unimplemented!(),
+        }
+    }
+    
+    pub fn find_active_pane_id(&self) -> Option<PaneID> {
+        // attempting to be idiomatic
+        let temp : Vec<(&PaneID, &PaneState)> = self.pane_states
+                        .iter()
+                        .filter(|(k, v)| v.active)
+                        .collect();
+        
+        assert!(temp.len() == 1, format!("Unexpected number of active panes {}", temp.len()));
+
+        Some(temp[0].0.clone())
     }
 
     pub fn get_pane_state(&self, id: PaneID) -> Option<&PaneState> {
         self.pane_states.get(&id)
     }
+
+    pub fn get_pane_state_mut(&mut self, id: PaneID) -> Option<&mut PaneState> {
+        self.pane_states.get_mut(&id)
+    }
+
+    pub fn set_pane_active(&mut self, id: PaneID) {
+        if let Some(state) = self.get_pane_state_mut(id) {
+            state.active = true;
+        }
+    }
+
+    pub fn set_pane_deactive(&mut self, id: PaneID) {
+        if let Some(state) = self.get_pane_state_mut(id) {
+            state.active = false;
+        }
+    }
+    
 }
 
 /// Main structure of the application
@@ -237,6 +313,12 @@ impl App {
         println!("Window Size: {} {}", w, h);
         self.renderer.set_view_port(w as f32, h as f32);
 
+        let shader = self.renderer.text_shader();
+
+        shader.activate();
+        shader.set_cell_size(self.config.cell_size);
+        shader.deactivate();
+
         // this module should have any unsafe code
         unsafe {
             gl::Enable(gl::BLEND);
@@ -290,6 +372,26 @@ impl App {
         // Set the view, bind uniforms, and bind the frame buffer.
         //        pane.ready_render(&self.renderer).map_err(|e| Error::RenderError(e))?;
         //        pane.bind_frame_as_write();
+        
+        let (w, h): (f32, f32) = pane.size().clone().into();
+        let loc = pane.loc();
+
+        self.renderer.set_view_port_at(w, h, loc.x as f32, loc.y as f32);
+
+        let shader = self.renderer.text_shader();
+        
+        let ortho = glm::ortho(0f32, w, h, 0f32, -1f32, 1f32);
+        let cell_size = self.config.cell_size;
+
+        shader.activate();
+        
+        shader.set_perspective(ortho);
+        shader.set_cell_size(cell_size);
+
+        shader.deactivate();
+        
+        state.frame.bind_write();
+
         //
         // Since the entire frame is to be drawn to, the frame doesnt need to be cleared?.
         // clear the current view, in this case it will be the frame buffer.
@@ -461,32 +563,59 @@ impl App {
     fn process_command_input(&mut self, ch: char) {}
 
     fn process_character_insert(&mut self, ch: char) {
-        /*
-        let pane = self.main_window.active_pane_mut();
-        let start_index = pane.start();
-        let pane_id = pane.id;
+        let id = self.main_window.active_pane_mut().id();
 
-        if let Some(doc_id) = self.get_pane_document_id(pane_id) {
-            let op = editor_core::Operation::insert(doc_id.clone(), start_index, x, y, ch);
-            self.engine.execute_on(op);
+        if let Some(state) = self.main_window.get_pane_state_mut(id) {
+            let start_index = state.start_line;
+            let (x, y) = state.cursor.pos().clone().into();
+            state.cursor.advance(if ch == '\t' {
+                self.config.tabs.tab_width as u32
+            }
+            else {
+                1
+            });
+
+            if let Some(doc_id) = self.get_pane_document_id(id) {
+                let op = editor_core::Operation::insert(doc_id.clone(), start_index, x, y, ch);
+                match self.engine.execute_on(op) {
+                    Err(_) => {
+                        // handle the error here
+                    },
+                    _ => {},
+                }
+                // this function needs document context information. No, because this is just
+                // moving the cursor. The context is needed when inserting an new line, to know
+                // if and how many tab need to be inserted.
+            }
+            else {
+                panic!("Corrupted pane and document association");
+            }
         }
-        else {
-            panic!("Corrupted pane and document association");
-        }
-        */
     }
 
     pub fn render_window(&self) {
-        /*
-        let pane = &self.main_pane;
-        let (w, h) = self.make_window.window().get_physical_size().into();
+        let pane = self.main_window.pane();
+        let (w, h): (f32, f32) = pane.size().clone().into();
 
         unsafe { gl::BindFramebuffer(gl::FRAMEBUFFER, 0); }
 
         self.renderer.clear_frame(None);
         self.renderer.set_view_port(w as f32, h as f32);
-        self.renderer.draw_rendered_pane(&self.window, pane);
-        */
+        
+        self.blit_panes(pane);
+    }
+
+    fn blit_panes(&self, pane: &Pane) {
+        match pane.kind() {
+            PaneKind::Edit => {
+                let state = self.main_window.get_pane_state(pane.id()).unwrap();
+                self.renderer.draw_rendered_pane(self.main_window.window(), pane, state);
+            }
+            PaneKind::Vert(ref layout) => {
+            },
+            PaneKind::Hor(ref layout) => {
+            }
+        }
     }
 
     pub fn swap_buffers(&self) {

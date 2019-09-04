@@ -266,6 +266,7 @@ impl Renderer {
                 (stride * float_size) as *const _,
             );
             gl::VertexAttribDivisor(3, 1);
+            glCheck!();
 
             stride += 3;
 
@@ -281,10 +282,6 @@ impl Renderer {
             gl::VertexAttribDivisor(4, 1);
 
             glCheck!();
-
-            gl::BindVertexArray(0);
-
-            gl::Enable(gl::BLEND);
         }
 
         let text_shader = TextShader::new()?;

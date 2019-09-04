@@ -83,7 +83,7 @@ extern "system" fn callback(
         gl::DEBUG_SEVERITY_HIGH => "HIGH",
         gl::DEBUG_SEVERITY_MEDIUM => "MEDIUM",
         gl::DEBUG_SEVERITY_LOW => "LOW",
-        gl::DEBUG_SEVERITY_NOTIFICATION => "NOTICE",
+        gl::DEBUG_SEVERITY_NOTIFICATION => return,
         _ => "UNKNOWN",
     };
 
