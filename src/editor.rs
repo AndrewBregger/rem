@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 // main rendering crate
-#[macro_use]
-use crate::render;
+#[macro_use] use crate::render;
 // editor area
 use crate::pane;
-use pane::{CellSize, Cells, Cursor, HorizontalLayout, Pane, PaneID, PaneKind, VerticalLayout};
+//use pane::{CellSize, Cells, Cursor, HorizontalLayout, Pane, PaneID, PaneKind, VerticalLayout, Layout};
 use render::PaneState;
 
 // editing engine
@@ -13,10 +12,16 @@ use crate::editor_core;
 use crate::config;
 // main window
 use crate::window::{Window, WindowSize};
+
+use crate::timer::Timer;
+
 // font managment(for now)
-use super::size::Size;
 use crate::font;
+
+use super::size::Size;
 use std::convert::{From, Into};
+use std::rc::Rc;
+
 // key bindings
 // use crate::bindings;
 
@@ -35,187 +40,6 @@ pub enum EditorMode {
     Normal,
     CommandInput,
     Visual,
-}
-
-/// The state around the cursor and other info about the text.
-/// I do not know what this is yet.
-#[derive(Debug)]
-struct EditorState;
-
-#[derive(Debug, Clone)]
-pub struct TabBar;
-
-/// Represents the layout and structure of the main window.
-/// I.E where the directory tree will be rendered, tab bar, message bar,
-///     and handling of pane splits.
-#[derive(Debug)]
-struct MainWindow {
-    /// panes are recurisively structured.
-    pane: pane::Pane,
-    /// pane render states
-    pane_states: HashMap<PaneID, PaneState>,
-    /// this is only shown when there are
-    tab_bar: Option<TabBar>,
-    /// a reference to all of the edit panes.
-    // panes: Vec<pane::Pane>,
-    /// the window the main window is associated with.
-    window: Window,
-    /// The size of a cell
-    cell_size: CellSize,
-    /// The window dimensions in cells.
-    cells: Size<u32>,
-}
-
-impl MainWindow {
-    fn new(window: Window, cell_size: CellSize) -> Result<Self> {
-        // this the physical size of the window.
-        let (width, height): (f64, f64) = window.get_physical_size().into();
-        println!("Main Window Size: ({}, {})", width, height);
-
-        let cells = Cells::compute_cells(width as f32, height as f32, cell_size);
-
-        let loc = pane::Loc::new(0f32, 0f32);
-
-        let pane = Pane::new(
-            PaneKind::Edit,
-            Size::new(width as f32, height as f32),
-            cells,
-            loc,
-        );
-
-        let mut main_window = Self {
-            pane,
-            pane_states: HashMap::new(),
-            tab_bar: None,
-            window,
-            cell_size,
-            cells,
-        };
-
-        // @TODO: Abstract this out to a method
-        main_window.pane_states.insert(
-            main_window.pane.id(),
-            PaneState::new(&main_window.pane)
-                .map_err(|e| Error::RenderError(render::Error::FrameBufferError(e)))?,
-        );
-
-        main_window.set_pane_active(main_window.pane.id());
-
-        Ok(main_window)
-    }
-
-    pub fn pane(&self) -> &Pane {
-        &self.pane
-    }
-
-    pub fn pane_mut(&mut self) -> &mut Pane {
-        &mut self.pane
-    }
-
-    pub fn window(&self) -> &Window {
-        &self.window
-    }
-
-    pub fn window_mut(&mut self) -> &mut Window {
-        &mut self.window
-    }
-
-    pub fn active_pane(&self) -> &pane::Pane {
-        if let Some(id) = self.find_active_pane_id() {
-            Self::find_pane_by_id(self.pane(), id)
-        }
-        else {
-            unreachable!();
-        }
-    }
-
-    pub fn active_pane_mut(&mut self) -> &mut pane::Pane {
-        if let Some(id) = self.find_active_pane_id() {
-            Self::find_pane_by_id_mut(self.pane_mut(), id)
-        }
-        else {
-            unreachable!();
-        }
-    }
-
-    fn find_pane_by_id(pane: &pane::Pane, id: PaneID) -> &pane::Pane {
-        match *pane.kind() {
-            PaneKind::Edit => {
-                if pane.id() == id {
-                    pane
-                }
-                else {
-                    panic!(format!("Unable to find pane of given id: {:?}", id));
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-
-    fn find_pane_by_id_mut(pane: &mut pane::Pane, id: PaneID) -> &mut pane::Pane {
-        match *pane.kind() {
-            PaneKind::Edit => {
-                if pane.id() == id {
-                    pane
-                }
-                else {
-                    panic!(format!("Unable to find pane of given id: {:?}", id));
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-    
-    pub fn find_active_pane_id(&self) -> Option<PaneID> {
-        // attempting to be idiomatic
-        let temp : Vec<(&PaneID, &PaneState)> = self.pane_states
-                        .iter()
-                        .filter(|(k, v)| v.active)
-                        .collect();
-        
-        assert!(temp.len() == 1, format!("Unexpected number of active panes {}", temp.len()));
-
-        Some(temp[0].0.clone())
-    }
-
-    pub fn get_pane_state(&self, id: PaneID) -> Option<&PaneState> {
-        self.pane_states.get(&id)
-    }
-
-    pub fn get_pane_state_mut(&mut self, id: PaneID) -> Option<&mut PaneState> {
-        self.pane_states.get_mut(&id)
-    }
-
-    pub fn set_pane_active(&mut self, id: PaneID) {
-        if let Some(state) = self.get_pane_state_mut(id) {
-            state.active = true;
-        }
-    }
-
-    pub fn set_pane_deactive(&mut self, id: PaneID) {
-        if let Some(state) = self.get_pane_state_mut(id) {
-            state.active = false;
-        }
-    }
-    
-}
-
-/// Main structure of the application
-pub struct App {
-    /// renders the entire application
-    renderer: render::Renderer,
-    ///  main editing engine, owns the open documents
-    engine: editor_core::Engine,
-    /// main windows pane
-    main_window: MainWindow,
-    /// the current mode of the editor.
-    mode: EditorMode,
-    /// pane and document association.
-    docs: HashMap<pane::PaneID, editor_core::DocID>,
-    /// until I know where they should actually go.
-    cache: render::GlyphCache<font::FreeTypeRasterizer>,
-    /// the current settings of the application
-    config: config::Config,
 }
 
 macro_rules! check {
@@ -240,6 +64,33 @@ macro_rules! check {
         }
     }};
 }
+
+/// The state around the cursor and other info about the text.
+/// I do not know what this is yet.
+#[derive(Debug)]
+struct EditorState;
+
+
+/// Main structure of the application
+pub struct App {
+    /// renders the entire application
+    renderer: render::Renderer,
+    ///  main editing engine, owns the open documents
+    engine: editor_core::Engine,
+    /// main windows pane
+    main_window: MainWindow,
+    /// the current mode of the editor.
+    mode: EditorMode,
+    /// pane and document association.
+    docs: HashMap<pane::PaneID, editor_core::DocID>,
+    /// until I know where they should actually go.
+    cache: render::GlyphCache<font::FreeTypeRasterizer>,
+    /// the current settings of the application
+    config: Rc<config::Config>,
+    /// 
+    timer: Timer,
+}
+
 
 impl App {
     pub fn new(mut config: config::Config) -> Result<Self> {
@@ -274,8 +125,10 @@ impl App {
 
         let main_window = MainWindow::new(window, cell_size)?;
 
+        let config = Rc::new(config);
+
         // if a file to open is not given, then an empty, unnamed file is created.
-        let mut engine = editor_core::Engine::new();
+        let mut engine = editor_core::Engine::new(config.clone());
 
         // let docid = if let Some(filename) = config.get_initial_file() {
         //  create the file with engine and associate it with the main pane.
@@ -296,13 +149,15 @@ impl App {
             mode: EditorMode::Insert,
             docs: HashMap::new(),
             cache,
-            config,
+            config
         };
 
         // what if a default layout is allowed and this not an edit pane. @FUTUREPROOF
         app.register_document(app.main_window.pane().id(), docid);
 
         app.prepare()?;
+
+        app.vertical_split_active_pane(docid);
 
         Ok(app)
     }
@@ -319,17 +174,25 @@ impl App {
         shader.set_cell_size(self.config.cell_size);
         shader.deactivate();
 
-        // this module should have any unsafe code
-        unsafe {
-            gl::Enable(gl::BLEND);
-            gl::BlendFunc(gl::SRC1_COLOR, gl::ONE_MINUS_SRC1_COLOR);
-            gl::Enable(gl::MULTISAMPLE);
-            gl::DepthMask(gl::FALSE);
-            gl::ClearColor(1.0, 1.0, 1.0, 1.0);
-        }
+        self.renderer.prepare();
 
         Ok(())
     }
+    
+    /*
+	pub fn vertical_split_active_pane(&mut self, new_document: editor_core::DocID) {
+		let active_pane = self.main_window.active_pane_mut();
+		let id = active_pane.vertical_split();
+        if let Some(pane) = MainWindow::find_pane_by_id(self.main_window.pane(), id) {
+            let size = pane.size().clone();
+
+            self.register_document(id, new_document);
+            self.main_window.create_pane_state(size, id);
+        }
+        else {
+            panic!("Failed to split pane");
+        }
+	}
 
     pub fn compute_cell_size(metrics: &font::Metrics, font: &config::Font) -> CellSize {
         let width = metrics.average_advance + font.offset.x;
@@ -337,6 +200,7 @@ impl App {
 
         CellSize::new(width, height)
     }
+    */
 
     /// registers a file to be rendered by an edit pane.
     pub fn register_document(&mut self, pane: PaneID, doc: editor_core::DocID) {
@@ -346,18 +210,33 @@ impl App {
            .and_modify(|e| *e = doc)
            .or_insert(doc); 
     }
-
+    
+    
+    /*
     pub fn render_panes(&self) -> Result<()> {
         let pane = self.main_window.pane();
-        match *pane.kind() {
+        self.render_all_panes(pane)
+    }
+    
+    fn render_all_panes(&self, current_pane: &Pane) -> Result<()> {
+        match *current_pane.kind() {
             PaneKind::Edit => {
-                if let Some(state) = self.main_window.get_pane_state(pane.id()) {
-                    self.render_pane(pane, state)?
+                if let Some(state) = self.main_window.get_pane_state(current_pane.id()) {
+                    self.render_pane(current_pane, state)?
                 } else {
                     panic!("Unable to find pane state for valid pane");
                 }
-            }
-            PaneKind::Vert(_) | PaneKind::Hor(_) => unimplemented!(),
+            },
+            PaneKind::Vert(ref layout) => {
+                for pane in layout.iter() {
+                    self.render_all_panes(pane)?;
+                }
+            },
+            PaneKind::Hor(ref layout) => {
+                for pane in layout.iter() {
+                    self.render_all_panes(pane)?;
+                }
+            },
         }
         Ok(())
     }
@@ -486,6 +365,7 @@ impl App {
 
         Ok(())
     }
+    */
 
     pub fn process_input(&mut self) -> bool {
         let mut running = true;
@@ -519,6 +399,7 @@ impl App {
                 // Maybe using KeyboardInput and processing that would
                 // give a better using experience instead of using ReceivedCharacter
                 WindowEvent::ReceivedCharacter(ch) => {
+                    println!("{:?}", event);
                     println!("Character Input: {}", *ch);
                     self.process_character_input(*ch);
                     true
@@ -529,7 +410,7 @@ impl App {
             _ => true,
         }
     }
-
+    /*
     pub fn active_pane(&self) -> Option<&pane::Pane> {
         None
     }
@@ -537,6 +418,8 @@ impl App {
     fn get_active_pane(&mut self) -> Option<&mut pane::Pane> {
         None
     }
+
+    */
 
     pub fn editor_mode(&self) -> EditorMode {
         self.mode
@@ -592,7 +475,8 @@ impl App {
             }
         }
     }
-
+    
+    /*
     pub fn render_window(&self) {
         let pane = self.main_window.pane();
         let (w, h): (f32, f32) = pane.size().clone().into();
@@ -612,11 +496,20 @@ impl App {
                 self.renderer.draw_rendered_pane(self.main_window.window(), pane, state);
             }
             PaneKind::Vert(ref layout) => {
+                for pane in layout.iter() {
+                    let state = self.main_window.get_pane_state(pane.id()).unwrap();
+                    self.renderer.draw_rendered_pane(self.main_window.window(), pane, state);
+                }
             },
             PaneKind::Hor(ref layout) => {
+                for pane in layout.iter() {
+                    let state = self.main_window.get_pane_state(pane.id()).unwrap();
+                    self.renderer.draw_rendered_pane(self.main_window.window(), pane, state);
+                }
             }
         }
     }
+    */
 
     pub fn swap_buffers(&self) {
         self.main_window.window().swap_buffers()

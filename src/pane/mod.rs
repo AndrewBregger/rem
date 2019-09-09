@@ -2,7 +2,7 @@ pub mod editpane;
 pub mod layout;
 
 pub use editpane::{Cursor, CursorMode};
-pub use layout::{HorizontalLayout, VerticalLayout};
+pub use layout::{HorizontalLayout, VerticalLayout, Layout, Orientation};
 
 use crate::size;
 use std::sync::atomic::{AtomicU32, Ordering::SeqCst};
@@ -90,6 +90,10 @@ impl Pane {
         &self.kind
     }
 
+    pub fn kind_mut(&mut self) -> &mut PaneKind {
+        &mut self.kind
+    }
+
     pub fn id(&self) -> PaneID {
         self.id
     }
@@ -105,6 +109,99 @@ impl Pane {
     pub fn loc(&self) -> &Loc {
         &self.loc
     }
+
+	pub fn vertical_split(&mut self) -> PaneID {
+		match *self.kind() {
+			PaneKind::Edit => {
+				self.make_into_vertical_layout()
+//				let new_parent = layout::VerticalLayout::new();
+			},
+			_ => {
+				unimplemented!();
+			}
+		}
+	}
+	
+	fn make_into_vertical_layout(&mut self) -> PaneID {
+		let size = self.size();
+		let cells = self.cells();
+		let loc = self.loc();
+		
+		let vertical_layout = layout::VerticalLayout::new();
+		
+		let mut parent_pane = Self::new(PaneKind::Vert(vertical_layout), size.clone(), cells.clone(), loc.clone());
+		
+		let mut right_pane = Self::new(PaneKind::Edit, size.clone(), cells.clone(), loc.clone());
+		let new_id = right_pane.id();
+		
+		parent_pane.add_child_pane(self.clone());
+		parent_pane.add_child_pane(right_pane);
+		
+		parent_pane.resize_children();
+		
+		*self = parent_pane;
+	    
+        new_id
+	}
+	
+	fn resize_children(&mut self) {
+		let psize = self.size().clone();
+		let pcells = self.cells().clone();
+		let mut new_loc = self.loc().clone();
+		
+		match self.kind {
+			PaneKind::Vert(ref mut layout) => {
+//				layout as dyn Layout
+				let num = layout.num_children();
+				let new_size = Size::new(psize.x, psize.y / num as f32);
+				let new_cells = Cells::new(pcells.x, pcells.y / num as u32);
+				
+				for mut pane in layout.iter_mut() {
+					pane.size = new_size;
+					pane.cells = new_cells;
+					pane.loc = new_loc;
+					
+					new_loc.x += new_size.x;
+					
+					pane.resize_children();
+				}
+			},
+			PaneKind::Hor(ref mut layout) => {
+//				layout as dyn Layout
+				let num = layout.num_children();
+				
+				let new_size = Size::new(psize.x / num as f32, psize.y);
+				let new_cells = Cells::new(pcells.x / num as u32, pcells.y);
+				
+				for mut pane in layout.iter_mut() {
+					pane.size = new_size;
+					pane.cells = new_cells;
+					pane.loc = new_loc;
+					
+					new_loc.y += new_size.y;
+					
+					pane.resize_children();
+				}
+			},
+			_ => return,
+		};	
+	}
+	
+	fn add_child_pane(&mut self, pane: Pane) {
+		match self.kind {
+			PaneKind::Vert(ref mut layout) => {
+				layout.add_child(pane);
+			},
+			PaneKind::Hor(ref mut layout) => {
+				layout.add_child(pane);
+			},
+			_ => {
+				panic!("Attempting to add child pane to non-layout pane");
+			}
+		}
+	}
+	
+	
 
     pub fn on_resize(&mut self, size: Size, cells: Cells, cell_size: CellSize) {
         self.size = size;

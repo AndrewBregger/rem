@@ -4,6 +4,9 @@ etc)
 
 Make sure the panes are rendered properly onto the screen.
 
+
+Temporary Solution Inplace:
+
 How to handle document indexing when the cursor coordinates are not the
 same as where it would be in the document. This would happen when a tab
 is inserted that isn't replaced by spaces but the cursor is still offset

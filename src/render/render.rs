@@ -63,15 +63,14 @@ pub struct PaneState {
 }
 
 impl PaneState {
-    pub fn new(pane: &Pane) -> ::std::result::Result<Self, framebuffer::Error> {
-        let size = pane.size();
+    pub fn new(size: size::Size<f32>, id: PaneID) -> ::std::result::Result<Self, framebuffer::Error> {
 
         Ok(Self {
-            pane: pane.id(),
-            cursor: Cursor::new(pane.id(), pane::CursorMode::Box),
+            pane: id,
+            cursor: Cursor::new(id, pane::CursorMode::Box),
             active: false,
             dirty: true,
-            frame: FrameBuffer::with_size(*size)?,
+            frame: FrameBuffer::with_size(size)?,
             start_line: 0,
             view_offset: 0,
         })
@@ -300,6 +299,16 @@ impl Renderer {
         })
     }
 
+    pub fn prepare(&self) {
+        unsafe {
+            gl::Enable(gl::BLEND);
+            gl::BlendFunc(gl::SRC1_COLOR, gl::ONE_MINUS_SRC1_COLOR);
+            gl::Enable(gl::MULTISAMPLE);
+            gl::DepthMask(gl::FALSE);
+            gl::ClearColor(1.0, 1.0, 1.0, 1.0);
+        }
+    }
+
     pub fn text_shader(&self) -> &TextShader {
         &self.text_shader
     }
@@ -466,7 +475,6 @@ impl Renderer {
         const B: f32 = 33f32 / 255f32;
 
         let pane_size = pane.cells();
-        println!("{:?}", pane_size);
 
         self.text_shader.activate();
         self.text_shader.set_background_pass(1);

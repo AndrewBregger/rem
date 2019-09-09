@@ -5,9 +5,11 @@ use std::fs;
 use std::io;
 use std::io::BufReader;
 use std::path;
+use std::rc::Rc;
 
 use ropey::iter::Bytes;
 use ropey::Rope;
+use crate::config;
 
 use std::sync::atomic::{AtomicU16, Ordering::SeqCst};
 
@@ -95,6 +97,7 @@ pub struct Engine {
 
     /// A acciciation of panes to indices in docs vector.
     document_map: HashMap<DocID, usize>,
+    config: Rc<config::Config>
 }
 
 #[derive(Debug, Clone)]
@@ -204,18 +207,28 @@ impl Document {
         Ok(())
     }
 
-    pub fn cursor_index(&self, first_line: usize, x: u32, y: u32) -> u64 {
+    pub fn cursor_index(&self, first_line: usize, mut x: u32, y: u32, tab_characters: u32) -> u64 {
         let first_line = first_line + y as usize;
         let line_index = self.content.line_to_char(first_line);
+        let line_slice = self.content.line(line_index);
+        
+        // simple solution to tab handling
+        for c in line_slice.chars() {
+            if c == '\t' {
+                x -= tab_characters - 1; 
+            }
+        }
+        
         line_index as u64 + x as u64
     }
 }
 
 impl Engine {
-    pub fn new() -> Self {
+    pub fn new(config: Rc<config::Config>) -> Self {
         Self {
             docs: Vec::new(),
             document_map: HashMap::new(),
+            config
         }
     }
 
@@ -275,21 +288,22 @@ impl Engine {
     /// pane: The identifier to know which file is being operated on.
     /// op: The operation being executed. See Operation for more detail.
     pub fn execute_on(&mut self, op: Operation) -> Result<()> {
+        let tab_size = self.config.as_ref().tabs.tab_width as u32;
         let document = self.get_mut_document(op.doc).ok_or(Error::InvalidDocID)?;
 
         println!("Operation {:?}", op);
 
         match op.kind {
             OperationKind::Insert(start_index, x, y, ch) => {
-                let index = document.cursor_index(start_index, x, y);
+                let index = document.cursor_index(start_index, x, y, tab_size);
                 document.insert(index, ch)?
             }
             OperationKind::Delete(start_index, x, y) => {
-                let index = document.cursor_index(start_index, x, y);
+                let index = document.cursor_index(start_index, x, y, tab_size);
                 document.delete(index)?
             }
             OperationKind::Paste(start_index, x, y, data) => {
-                let index = document.cursor_index(start_index, x, y);
+                let index = document.cursor_index(start_index, x, y, tab_size);
                 document.paste(index, data.as_str())?
             }
             OperationKind::WriteFile => document.write()?,

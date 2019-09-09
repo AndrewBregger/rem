@@ -12,9 +12,15 @@ mod render;
 mod config;
 mod editor;
 mod editor_core;
-mod pane;
 mod size;
 mod window;
+mod timer;
+mod main_window;
+mod view;
+mod color;
+
+// mod pane;
+
 use editor::App;
 use font::Rasterizer;
 use gl::types::*;
