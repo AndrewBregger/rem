@@ -35,13 +35,6 @@ impl MainWindow {
 
         let loc = pane::Loc::new(0f32, 0f32);
 
-        // let pane = Pane::new(
-        //     PaneKind::Edit,
-        //     Size::new(width as f32, height as f32),
-        //     cells,
-        //     loc,
-        // );
-
         let mut main_window = Self {
             pane,
             pane_states: HashMap::new(),
