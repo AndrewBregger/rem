@@ -8,8 +8,8 @@ pub use glutin::{
 pub use glutin::{ContextError, CreationError};
 
 // needed for size
-// use crate::size;
-pub use glutin::dpi::{LogicalSize, PhysicalSize};
+use crate::size;
+use glutin::dpi::{LogicalSize, PhysicalSize};
 use std::convert::Into;
 
 #[derive(Debug)]
@@ -20,6 +20,23 @@ pub enum Error {
 
 // Uses the entire Result path so result is not redeclared in this scope.
 pub type Result<T> = ::std::result::Result<T, Error>;
+pub type WindowSize = size::Size<f32>;
+
+impl WindowSize {
+    pub fn width(&self) -> f32 {
+        self.x
+    }
+
+    pub fn height(&self) -> f32 {
+        self.y
+    }
+}
+
+impl Into<LogicalSize> for WindowSize {
+    fn into(self) -> LogicalSize {
+        LogicalSize::new(self.x.into(), self.y.into())
+    }
+}
 
 #[derive(Debug)]
 pub struct Window {
@@ -32,12 +49,7 @@ pub struct Window {
     context: WindowedContext<PossiblyCurrent>,
 
     // Is this window the active window of the user.
-    focused: bool,
-
-    // The width of the widow in pixles
-    w: f32, 
-    // The height of the widow in pixles
-    h: f32,
+    is_focus: bool,
 }
 
 // @TODO: extend window building to platform specific window builders to
@@ -54,19 +66,11 @@ impl Window {
     pub fn new(event_loop: EventsLoop, size: LogicalSize) -> Result<Self> {
         let context = Self::build_window(&event_loop, size)?;
 
-        if let Some(size) = context.window().get_inner_size() {
-            Ok(Self {
-                event_loop,
-                context,
-                focused: true,
-                w: size.width as f32,
-                h: size.height as f32,
-            })
-        }
-        else {
-            panic!("Failed to get window size from context");
-        }
-
+        Ok(Self {
+            event_loop,
+            context,
+            is_focus: true,
+        })
     }
 
     // gets the dpi of the window, this can be be changed by user action
@@ -74,10 +78,6 @@ impl Window {
     // This is needed for font rendering.
     pub fn dpi_factor(&self) -> f64 {
         self.window().get_hidpi_factor()
-    }
-
-    pub fn get_size(&self) -> (f32, f32) {
-        (self.w, self.h)
     }
 
     pub fn get_inner_size(&self) -> Option<LogicalSize> {
@@ -100,10 +100,6 @@ impl Window {
 
     pub fn set_title(&self, title: &str) {
         self.window().set_title(title)
-    }
-
-    pub fn is_focused(&self) -> bool {
-        self.focused
     }
 
     #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -190,7 +186,8 @@ impl Window {
     }
 
     // this should never fail.
-    pub fn init_gl(&self) {
+    pub fn init_gl(&self) -> Result<()> {
         gl::load_with(|s| self.context.get_proc_address(s) as *const _);
+        Ok(())
     }
 }

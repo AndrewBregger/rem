@@ -1,6 +1,5 @@
 use super::font::{FontDesc, FontSize};
-use super::pane::CellSize;
-use crate::pane;
+use super::view::{CellSize, CursorMode};
 use glm::Vec2;
 use std::default::Default;
 
@@ -37,9 +36,9 @@ pub struct Atlas {
 #[derive(Debug, Clone)]
 pub struct Cursor {
     /// the cursor mode in insert mode
-    pub insert: pane::CursorMode,
+    pub insert: CursorMode,
     /// the cursor mode in normal mode
-    pub normal: pane::CursorMode,
+    pub normal: CursorMode,
 }
 // ColorScheme? Theme? Theses could be file names and the settings struct handles how they interact
 
@@ -78,8 +77,8 @@ impl Default for Config {
             tabs: Tab { tab_width: 2 },
             atlas: Atlas { size: 1024f32 },
             cursor: Cursor {
-                insert: pane::CursorMode::Line,
-                normal: pane::CursorMode::Box,
+                insert: CursorMode::Line,
+                normal: CursorMode::Box,
             },
             cell_size: CellSize::new(0f32, 0f32),
         }

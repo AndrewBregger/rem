@@ -1,0 +1,210 @@
+[2019-09-27][22:15:49][rem][WARN] This is a warning
+[2019-09-27][22:18:26][rem][TRACE] This is a trace message
+[2019-09-27][22:18:26][rem][WARN] This is a warning
+[2019-09-28][14:59:00][rem][TRACE] This is a trace message
+[2019-09-28][14:59:00][rem][WARN] This is a warning
+[2019-09-28][15:09:02][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-09-28][15:09:02][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][16:38:34][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][16:38:34][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:10:31][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:10:31][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:10:31][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:13:43][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:13:43][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:13:43][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:17:06][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:17:06][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:17:06][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:17:47][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:17:47][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:17:47][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:17:56][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:17:56][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:17:56][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:31:01][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:31:01][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:31:01][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:31:59][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:31:59][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:31:59][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:33:00][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:33:00][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:33:00][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:33:57][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:33:57][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:33:57][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:35:48][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:35:48][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:35:48][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][19:37:07][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][19:37:07][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][19:37:07][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][22:50:10][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][22:50:10][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][22:50:10][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][22:53:45][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][22:53:45][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][22:53:45][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][22:58:42][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][22:58:42][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][22:58:42][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:13:21][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:13:21][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:13:21][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:13:38][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:13:38][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:13:38][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:14:13][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:14:13][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:14:13][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:17:08][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:17:08][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:17:08][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:21:26][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:21:26][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:21:26][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:26:00][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:26:00][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:26:00][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:29:12][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:29:12][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:29:12][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:29:24][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:29:24][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:29:24][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:30:59][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:30:59][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:30:59][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:36:07][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:36:07][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:36:07][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:37:01][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:37:01][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:37:01][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:37:17][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:37:17][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:37:17][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:39:37][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:39:37][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:39:37][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:42:58][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:42:58][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:42:58][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:48:46][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:48:46][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:48:46][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:49:21][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:49:21][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:49:21][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:50:47][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:50:47][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:50:47][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:51:06][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:51:06][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:51:06][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:51:45][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:51:45][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:51:45][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:52:50][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:52:50][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:52:50][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:54:41][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:54:41][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:54:41][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:55:12][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:55:12][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:55:12][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:56:09][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:56:09][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:56:09][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:56:21][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:56:21][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:56:21][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:58:20][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:58:20][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:58:20][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-05][23:58:54][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-05][23:58:54][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-05][23:58:54][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:01:16][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][00:01:16][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][00:01:16][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:01:45][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][00:01:45][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][00:01:45][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:06:26][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][00:06:26][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][00:06:26][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:08:19][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][00:08:19][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][00:08:19][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:10:27][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][00:10:27][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][00:10:27][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:11:23][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][00:11:23][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][00:11:23][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:13:20][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][00:13:20][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][00:13:20][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:40:07][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][00:40:07][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][00:40:07][rem][TRACE] Built main window: (1071.4286, 1176.8572)
+[2019-10-06][00:40:07][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][00:40:07][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][12:21:39][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][12:21:39][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][12:21:39][rem][TRACE] Built main window: (705.4286, 1198.2858)
+[2019-10-06][12:21:39][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][12:21:39][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][12:32:49][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][12:32:49][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][12:32:49][rem][TRACE] Built main window: (1071.4286, 1198.2858)
+[2019-10-06][12:32:49][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][12:32:49][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][12:33:23][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][12:33:23][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][12:33:23][rem][TRACE] Built main window: (705.4286, 1198.2858)
+[2019-10-06][12:33:23][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][12:33:23][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][12:49:29][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][12:49:29][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][12:49:30][rem][TRACE] Built main window: (705.4286, 1198.2858)
+[2019-10-06][12:49:30][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][12:49:30][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][12:55:31][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][12:55:31][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][12:55:31][rem][TRACE] Built main window: (1071.4286, 1198.2858)
+[2019-10-06][12:55:31][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][12:55:31][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][12:56:47][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][12:56:47][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][12:56:47][rem][TRACE] Built main window: (1071.4286, 1198.2858)
+[2019-10-06][12:56:47][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][12:56:47][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][12:59:05][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][12:59:05][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][12:59:05][rem][TRACE] Built main window: (1071.4286, 1198.2858)
+[2019-10-06][12:59:05][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][12:59:05][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][13:00:00][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][13:00:00][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][13:00:00][rem][TRACE] Built main window: (1071.4286, 1198.2858)
+[2019-10-06][13:00:00][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][13:00:00][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][13:00:28][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][13:00:28][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][13:00:29][rem][TRACE] Built main window: (705.4286, 1198.2858)
+[2019-10-06][13:00:29][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][13:00:29][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][13:12:50][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][13:12:50][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][13:12:50][rem][TRACE] Built main window: (1071.4286, 1198.2858)
+[2019-10-06][13:12:50][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][13:12:50][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-06][13:13:17][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-06][13:13:17][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-06][13:13:17][rem][TRACE] Built main window: (705.4286, 1198.2858)
+[2019-10-06][13:13:17][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-06][13:13:17][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3

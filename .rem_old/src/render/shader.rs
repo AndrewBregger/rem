@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::ptr;
 use std::str;
 
-use crate::pane::CellSize;
+use crate::view::CellSize;
 
 use super::Atlas;
 use super::Result;

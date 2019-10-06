@@ -1,3 +1,13 @@
+pub mod caches;
+pub mod framebuffer;
+pub mod render;
+
+pub use caches::*;
+pub(crate) mod shader;
+
+use crate::font;
+use crate::font::GlyphKey;
+
 use gl;
 use gl::types::*;
 use nalgebra_glm as glm;
@@ -8,17 +18,24 @@ use std::mem;
 use std::ptr;
 
 use crate::config;
-use crate::pane::{self, Cursor, Pane, PaneID};
 use crate::size;
 use crate::window::Window;
 
-use super::caches::Atlas;
-use super::font::{self, FontDesc, FontKey, FontSize, GlyphKey, RasterizedGlyph, Rasterizer};
-use super::framebuffer::{self, FrameBuffer};
-use super::shader::{RectShader, TextShader};
-use super::{Error, Glyph, GlyphCache, Result};
+use font::{self, FontDesc, FontKey, FontSize, GlyphKey, RasterizedGlyph, Rasterizer};
+use framebuffer::{self, FrameBuffer};
+use shader::{RectShader, TextShader};
 
-// static mut CURRENT_TIME: std::time::Instant = std::time::Instant::new(0, 0); // = std::time::Instant::now();
+#[derive(Debug, Clone)]
+pub enum Error {
+    FontError(font::Error),
+    AtlasFull,
+    RenderError(String),
+    AtlasError(String),
+    CacheMissChar(GlyphKey),
+    FrameBufferError(framebuffer::Error),
+}
+
+pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[macro_export]
 macro_rules! glCheck {
@@ -37,52 +54,47 @@ macro_rules! glCheck {
                     gl::STACK_OVERFLOW => "GL_STACK_OVERFLOW",
                     _ => "unknown error",
                 };
-                println!("{}:{} error {}", file!(), line!(), err_str);
+                trace!("{}:{} error {}", file!(), line!(), err_str);
                 panic!();
             }
         }
     }};
 }
 
-/// The current state of a pane.
-#[derive(Debug)]
-pub struct PaneState {
-    pub pane: PaneID,
-    /// The cursor of this pane
-    pub cursor: Cursor,
-    /// is the pane active.
-    pub active: bool,
-    /// the pane needs to be redrawn.
-    pub dirty: bool,
-    /// the cached rendered pane
-    pub frame: FrameBuffer,
-    /// the first line of the document that is visible.
-    pub start_line: usize,
-    /// the the column of the text that is left most.
-    pub view_offset: usize,
+#[derive(Debug, Clone, Copy)]
+pub struct Glyph {
+    /// Character this glyph represents
+    pub ch: u32,
+    /// The id of the atlas this glyph is located
+    pub atlas: u32,
+    /// Width of the glyph in pixels
+    pub width: f32,
+    /// Height of the glyph in pixels
+    pub height: f32,
+    /// The x uv coordinate of the glyph in the atlas
+    pub uv_x: f32,
+    /// The y uv coordinate of the glyph in the atlas
+    pub uv_y: f32,
+    /// The width in texture coordinate space (delta x)
+    pub uv_dx: f32,
+    /// The height in texture coordinate space (delta y)
+    pub uv_dy: f32,
+    /// top of glyph
+    pub top: f32,
+    /// left of glyph
+    pub left: f32,
+    /// advance x
+    pub advance_x: f32,
+    /// advance y
+    pub advance_y: f32,
+    /// x bearing of the character
+    pub bearing_x: f32,
+    /// y bearing of the character
+    pub bearing_y: f32,
 }
 
-impl PaneState {
-    pub fn new(size: size::Size<f32>, id: PaneID) -> ::std::result::Result<Self, framebuffer::Error> {
 
-        Ok(Self {
-            pane: id,
-            cursor: Cursor::new(id, pane::CursorMode::Box),
-            active: false,
-            dirty: true,
-            frame: FrameBuffer::with_size(size)?,
-            start_line: 0,
-            view_offset: 0,
-        })
-    }
-
-    fn viewed_at(mut self, start_line: usize, view_offset: usize) -> Self {
-        self.start_line = start_line;
-        self.view_offset = view_offset;
-
-        self
-    }
-}
+// static mut CURRENT_TIME: std::time::Instant = std::time::Instant::new(0, 0); // = std::time::Instant::now();
 
 static BATCH_SIZE: usize = 1024;
 
@@ -137,7 +149,7 @@ impl Batch {
         self.instances.is_empty()
     }
 
-    pub fn push(&mut self, data: InstanceData) -> bool {
+    pub fn push(&mut self, data: InstanceData)  {
         if self.is_empty() {
             self.texture_id = data.texture_id as u32
         }
@@ -145,8 +157,6 @@ impl Batch {
         if self.instances.len() < BATCH_SIZE {
             self.instances.push(data)
         }
-
-        self.instances.len() == BATCH_SIZE
     }
 
     pub fn push_background_pass_data(&mut self, x: f32, y: f32, r: f32, g: f32, b: f32, a: f32) {
@@ -179,6 +189,8 @@ pub struct Renderer {
     rect_shader: RectShader,
     // all of the vertex atlases
     atlases: Vec<Atlas>,
+    // instance batch
+    batch: Batch
 }
 
 impl Renderer {
@@ -299,6 +311,13 @@ impl Renderer {
         })
     }
 
+    pub fn push_instance(&mut self, data: InstanceData) {
+        if self.batch.is_full() {
+            self.
+        }
+        self.batch.push(data);
+    }
+
     pub fn prepare(&self) {
         unsafe {
             gl::Enable(gl::BLEND);
@@ -332,7 +351,9 @@ impl Renderer {
         }
     }
 
-    pub fn draw_batch(&self, batch: &Batch) -> Result<()> {
+    pub fn draw_batch(&mut self) -> Result<()> {
+        let batch = &self.batch;
+
         if !batch.is_empty() {
             glCheck!();
             self.text_shader.activate();
@@ -387,13 +408,15 @@ impl Renderer {
             }
 
             self.text_shader.deactivate();
+            self.batch.clear();
         }
 
         Ok(())
     }
 
-    pub fn render_background_pass(&self, batch: &Batch) -> Result<()> {
+    pub fn render_background_pass(&mut self) -> Result<()> {
         self.text_shader.activate();
+        let batch = &self.batch;
 
         unsafe {
             gl::BindVertexArray(self.vao);
@@ -420,6 +443,7 @@ impl Renderer {
             );
         }
         self.text_shader.deactivate();
+        self.batch.clear();
 
         Ok(())
     }
@@ -468,7 +492,7 @@ impl Renderer {
 
     /// draws the background of a pane.
     /// I am passing in batch to reduce the number of allocations
-    pub fn draw_pane_background(&self, batch: &mut Batch, pane: &Pane, cursor: &Cursor) {
+    pub fn draw_pane_background(&mut self, pane: &Pane, cursor: &Cursor) {
         // temporary background color
         const R: f32 = 33f32 / 255f32;
         const G: f32 = 33f32 / 255f32;
@@ -479,6 +503,8 @@ impl Renderer {
         self.text_shader.activate();
         self.text_shader.set_background_pass(1);
         self.text_shader.deactivate();
+
+        let batch = &mut self.batch;
 
         for i in 0..=pane_size.x {
             for j in 0..=pane_size.y {
@@ -493,7 +519,7 @@ impl Renderer {
 
         // if it is full then draw it.
         if batch.is_full() {
-            self.render_background_pass(&batch);
+            self.render_background_pass();
             batch.clear();
         }
 
@@ -508,11 +534,12 @@ impl Renderer {
         );
         // }
 
-        self.render_background_pass(&batch);
+        self.render_background_pass();
         batch.clear();
     }
 
     /// assumes the frame buffer has been rendered to and ready to be drawn.
+    /*
     pub fn draw_rendered_pane(&self, window: &Window, pane: &Pane, state: &PaneState) {
         let (w, h): (i32, i32) = if let Some(s) = window.get_inner_size() {
             let s = s.to_physical(window.dpi_factor());
@@ -548,4 +575,5 @@ impl Renderer {
             gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
         }
     }
+    */
 }
