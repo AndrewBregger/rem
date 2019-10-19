@@ -208,3 +208,13 @@
 [2019-10-06][13:13:17][rem][TRACE] Built main window: (705.4286, 1198.2858)
 [2019-10-06][13:13:17][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
 [2019-10-06][13:13:17][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-13][00:44:33][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-13][00:44:33][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-13][00:44:33][rem][TRACE] Built main window: (400.2857, 400.2857)
+[2019-10-13][00:44:33][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-13][00:44:33][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3
+[2019-10-13][00:45:53][winit::platform::platform::x11::window][INFO] Guessed window DPI factor: 1.1666666666666667
+[2019-10-13][00:45:53][winit::platform::platform::x11::window][DEBUG] Calculated physical dimensions: 467x467
+[2019-10-13][00:45:53][rem][TRACE] Built main window: (400.2857, 400.2857)
+[2019-10-13][00:45:53][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 1
+[2019-10-13][00:45:53][font_kit::loaders::freetype][WARN] get_type_1_or_sfnt_name(): found invalid platform ID 3

@@ -381,7 +381,7 @@ fn main() {
     ];
 
     unsafe {
-        gl::ClearColor(1.0, 1.0, 1.0, 1.0);
+        gl::ClearColor(0.6, 0.6, 0.6, 0.7);
         glCheck!();
 
         gl::Enable(gl::BLEND);
